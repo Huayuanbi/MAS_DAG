@@ -1,0 +1,62 @@
+[
+  {
+    "task": "Choose an efficient order for the agents to solve this query.",
+    "nodes": [
+      {
+        "id": "agent_0",
+        "role": "planner",
+        "role_brief": "Plans the solution, decomposes the query, and assigns a useful reasoning order."
+      },
+      {
+        "id": "agent_1",
+        "role": "solver",
+        "role_brief": "Solves the main technical problem using the available evidence and prior messages."
+      },
+      {
+        "id": "agent_2",
+        "role": "critic",
+        "role_brief": "Checks intermediate reasoning, identifies mistakes, and proposes corrections."
+      }
+    ],
+    "graphs": [
+      {
+        "reward": 0.82,
+        "mask": [0, 0, 0],
+        "edge_weight": [
+          [0.0, 1.0, 0.0],
+          [0.0, 0.0, 1.0],
+          [0.0, 0.0, 0.0]
+        ],
+        "edge_token_cost": [
+          [0.0, 128.5, 0.0],
+          [0.0, 0.0, 96.0],
+          [0.0, 0.0, 0.0]
+        ],
+        "edge_time_cost": [
+          [0.0, 0.42, 0.0],
+          [0.0, 0.0, 0.31],
+          [0.0, 0.0, 0.0]
+        ]
+      },
+      {
+        "reward": 0.61,
+        "mask": [0, 0, 1],
+        "edge_weight": [
+          [0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0],
+          [0.0, 0.0, 0.0]
+        ],
+        "edge_token_cost": [
+          [0.0, 128.5, 0.0],
+          [0.0, 0.0, 0.0],
+          [0.0, 0.0, 0.0]
+        ],
+        "edge_time_cost": [
+          [0.0, 0.42, 0.0],
+          [0.0, 0.0, 0.0],
+          [0.0, 0.0, 0.0]
+        ]
+      }
+    ]
+  }
+]

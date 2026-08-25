@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agp-minimal"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "openai>=1.40",
+    "sentence-transformers>=2.2",
+    "torch>=2.3",
+    "torch-geometric>=2.6",
+    "transformers>=4.51",
+]
+
+[tool.setuptools.packages.find]
+include = ["agp_minimal*"]

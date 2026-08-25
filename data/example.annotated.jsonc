@@ -1,0 +1,75 @@
+[
+  {
+    // 一个顶层对象代表一个 Query，以及这个 Query 的多张候选图。
+    "task": "Choose an efficient order for the agents to solve this query.",
+
+    // 所有候选图共享节点集合；第 i 个节点对应矩阵的第 i 行和第 i 列。
+    "nodes": [
+      {
+        // ID 在当前 Query 内唯一，可以是字符串或整数。
+        "id": "agent_0",
+        "role": "planner",
+        // 本地语言编码器根据 role_brief 生成 384 维 embedding。
+        "role_brief": "Plans the solution, decomposes the query, and assigns a useful reasoning order."
+      },
+      {
+        "id": "agent_1",
+        "role": "solver",
+        "role_brief": "Solves the main technical problem using the available evidence and prior messages."
+      },
+      {
+        "id": "agent_2",
+        "role": "critic",
+        "role_brief": "Checks intermediate reasoning, identifies mistakes, and proposes corrections."
+      }
+    ],
+
+    // PairwiseDataset 只在这个候选集合内部比较 reward。
+    "graphs": [
+      {
+        // 候选图的效果分数，必须是有限浮点数；越大越好。
+        "reward": 0.82,
+        // 节点标签：0=保留，1=剪掉。
+        "mask": [0, 0, 0],
+        // 有向边矩阵：[i][j] 表示 nodes[i] -> nodes[j]。
+        "edge_weight": [
+          [0.0, 1.0, 0.0],
+          [0.0, 0.0, 1.0],
+          [0.0, 0.0, 0.0]
+        ],
+        // 每条边的 token 消耗；无边位置和对角线填 0.0。
+        "edge_token_cost": [
+          [0.0, 128.5, 0.0],
+          [0.0, 0.0, 96.0],
+          [0.0, 0.0, 0.0]
+        ],
+        // 每条边的耗时，单位统一为秒。
+        "edge_time_cost": [
+          [0.0, 0.42, 0.0],
+          [0.0, 0.0, 0.31],
+          [0.0, 0.0, 0.0]
+        ]
+      },
+      {
+        // reward 更低，和上一张图配对时作为 rejected。
+        "reward": 0.61,
+        "mask": [0, 0, 1],
+        "edge_weight": [
+          [0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0],
+          [0.0, 0.0, 0.0]
+        ],
+        "edge_token_cost": [
+          [0.0, 128.5, 0.0],
+          [0.0, 0.0, 0.0],
+          [0.0, 0.0, 0.0]
+        ],
+        "edge_time_cost": [
+          [0.0, 0.42, 0.0],
+          [0.0, 0.0, 0.0],
+          [0.0, 0.0, 0.0]
+        ]
+      }
+    ]
+  }
+]
