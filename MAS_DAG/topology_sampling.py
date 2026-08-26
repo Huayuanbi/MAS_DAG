@@ -81,11 +81,21 @@ def _active_nodes(
     return active
 
 
-def _random_order(
+def _node_order(
     active_nodes: Sequence[int],
     finalizer: int,
     rng: random.Random,
+    fixed_order: Sequence[int] | None = None,
 ) -> tuple[int, ...]:
+    if fixed_order is not None:
+        if len(fixed_order) != len(set(fixed_order)):
+            raise ValueError("fixed_order must not contain duplicate nodes")
+        if finalizer not in fixed_order or fixed_order[-1] != finalizer:
+            raise ValueError("fixed_order must contain the finalizer last")
+        active = set(active_nodes)
+        if not active.issubset(fixed_order):
+            raise ValueError("fixed_order must contain every active node")
+        return tuple(node for node in fixed_order if node in active)
     prefix = [node for node in active_nodes if node != finalizer]
     rng.shuffle(prefix)
     return tuple(prefix + [finalizer])
@@ -176,10 +186,11 @@ def generate_chain(
     *,
     active_nodes: Iterable[int] | None = None,
     rng: random.Random | None = None,
+    fixed_order: Sequence[int] | None = None,
 ) -> SampledTopology:
     rng = _get_rng(rng)
     active = _active_nodes(num_nodes, finalizer, active_nodes)
-    order = _random_order(active, finalizer, rng)
+    order = _node_order(active, finalizer, rng, fixed_order)
     return _build_topology(
         "chain", num_nodes, active, order, zip(order, order[1:]), finalizer
     )
@@ -191,10 +202,11 @@ def generate_star(
     *,
     active_nodes: Iterable[int] | None = None,
     rng: random.Random | None = None,
+    fixed_order: Sequence[int] | None = None,
 ) -> SampledTopology:
     rng = _get_rng(rng)
     active = _active_nodes(num_nodes, finalizer, active_nodes)
-    order = _random_order(active, finalizer, rng)
+    order = _node_order(active, finalizer, rng, fixed_order)
     edges = ((node, finalizer) for node in active if node != finalizer)
     return _build_topology("star", num_nodes, active, order, edges, finalizer)
 
@@ -205,10 +217,11 @@ def generate_tree(
     *,
     active_nodes: Iterable[int] | None = None,
     rng: random.Random | None = None,
+    fixed_order: Sequence[int] | None = None,
 ) -> SampledTopology:
     rng = _get_rng(rng)
     active = _active_nodes(num_nodes, finalizer, active_nodes)
-    order = _random_order(active, finalizer, rng)
+    order = _node_order(active, finalizer, rng, fixed_order)
     edges = [
         (node, rng.choice(order[index + 1 :]))
         for index, node in enumerate(order[:-1])
@@ -222,10 +235,11 @@ def generate_complete_dag(
     *,
     active_nodes: Iterable[int] | None = None,
     rng: random.Random | None = None,
+    fixed_order: Sequence[int] | None = None,
 ) -> SampledTopology:
     rng = _get_rng(rng)
     active = _active_nodes(num_nodes, finalizer, active_nodes)
-    order = _random_order(active, finalizer, rng)
+    order = _node_order(active, finalizer, rng, fixed_order)
     edges = (
         (source, target)
         for index, source in enumerate(order)
@@ -272,10 +286,11 @@ def generate_sparse_random(
     active_nodes: Iterable[int] | None = None,
     extra_edge_probability: float = 0.15,
     rng: random.Random | None = None,
+    fixed_order: Sequence[int] | None = None,
 ) -> SampledTopology:
     rng = _get_rng(rng)
     active = _active_nodes(num_nodes, finalizer, active_nodes)
-    order = _random_order(active, finalizer, rng)
+    order = _node_order(active, finalizer, rng, fixed_order)
     edges = _backbone_edges(order, rng)
     _add_random_forward_edges(
         order, edges, extra_edge_probability, rng, force_one=True
@@ -328,6 +343,7 @@ def generate_random_dag(
     active_count_weights: Sequence[float] | None = None,
     extra_edge_probability: float | None = None,
     rng: random.Random | None = None,
+    fixed_order: Sequence[int] | None = None,
 ) -> SampledTopology:
     rng = _get_rng(rng)
     if active_count is None:
@@ -347,7 +363,7 @@ def generate_random_dag(
     non_finalizers = [node for node in range(num_nodes) if node != finalizer]
     selected = rng.sample(non_finalizers, active_count - 1)
     active = tuple(selected + [finalizer])
-    order = _random_order(active, finalizer, rng)
+    order = _node_order(active, finalizer, rng, fixed_order)
     edges = _backbone_edges(order, rng)
     probability = (
         rng.choice((0.1, 0.3, 0.5))
@@ -364,11 +380,15 @@ def generate_candidate_suite(
     *,
     random_count: int = 5,
     seed: int | None = None,
+    fixed_order: Sequence[int] | None = None,
 ) -> list[SampledTopology]:
     """Generate 5 anchors, 2 low-cost baselines, and random connected DAGs."""
     if random_count < 0:
         raise ValueError("random_count must be non-negative")
     rng = random.Random(seed)
+    # With semantic role ordering, anchors are dataset-wide controls and must
+    # not change from one task seed to another. Random DAGs still use `seed`.
+    anchor_rng = random.Random(0) if fixed_order is not None else rng
     topologies: list[SampledTopology] = []
     signatures: set[tuple[tuple[int, ...], tuple[tuple[int, ...], ...]]] = set()
 
@@ -381,13 +401,38 @@ def generate_candidate_suite(
                 return
         raise RuntimeError("could not generate a unique candidate topology")
 
-    add_unique(lambda: generate_chain(num_nodes, finalizer, rng=rng))
-    add_unique(lambda: generate_star(num_nodes, finalizer, rng=rng))
-    add_unique(lambda: generate_tree(num_nodes, finalizer, rng=rng))
-    add_unique(lambda: generate_complete_dag(num_nodes, finalizer, rng=rng))
-    add_unique(lambda: generate_sparse_random(num_nodes, finalizer, rng=rng))
+    if fixed_order is not None and set(fixed_order) != set(range(num_nodes)):
+        raise ValueError("fixed_order must contain every node exactly once")
+    if fixed_order is not None and fixed_order[-1] != finalizer:
+        raise ValueError("fixed_order must place the finalizer last")
+
+    add_unique(
+        lambda: generate_chain(
+            num_nodes, finalizer, rng=anchor_rng, fixed_order=fixed_order
+        )
+    )
+    add_unique(
+        lambda: generate_star(
+            num_nodes, finalizer, rng=anchor_rng, fixed_order=fixed_order
+        )
+    )
+    add_unique(
+        lambda: generate_tree(
+            num_nodes, finalizer, rng=anchor_rng, fixed_order=fixed_order
+        )
+    )
+    add_unique(
+        lambda: generate_complete_dag(
+            num_nodes, finalizer, rng=anchor_rng, fixed_order=fixed_order
+        )
+    )
+    add_unique(
+        lambda: generate_sparse_random(
+            num_nodes, finalizer, rng=anchor_rng, fixed_order=fixed_order
+        )
+    )
     add_unique(lambda: generate_finalizer_only(num_nodes, finalizer))
-    add_unique(lambda: generate_two_node(num_nodes, finalizer, rng=rng))
+    add_unique(lambda: generate_two_node(num_nodes, finalizer, rng=anchor_rng))
     for _ in range(random_count):
         add_unique(
             lambda: generate_random_dag(
@@ -395,6 +440,7 @@ def generate_candidate_suite(
                 finalizer,
                 active_count_weights=DEFAULT_ACTIVE_COUNT_WEIGHTS[:num_nodes],
                 rng=rng,
+                fixed_order=fixed_order,
             )
         )
     return topologies

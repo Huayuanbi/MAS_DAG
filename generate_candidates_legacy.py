@@ -5,7 +5,7 @@ import json
 import os
 from pathlib import Path
 
-from agp_minimal import DEFAULT_GSM8K_ROLES, generate_candidate_suite
+from MAS_DAG import DEFAULT_GSM8K_ROLES, generate_candidate_suite
 
 
 ROOT = Path(__file__).resolve().parent

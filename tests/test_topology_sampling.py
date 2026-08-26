@@ -1,7 +1,7 @@
 import random
 import unittest
 
-from agp_minimal import (
+from MAS_DAG import (
     generate_candidate_suite,
     generate_chain,
     generate_complete_dag,
@@ -93,6 +93,36 @@ class TopologySamplingTest(unittest.TestCase):
             ],
         )
         self.assertTrue(all(item.generator == "random_dag" for item in first[7:]))
+
+    def test_fixed_role_order_applies_to_every_candidate(self) -> None:
+        fixed_order = tuple(range(self.NUM_NODES))
+        for seed in range(20):
+            candidates = generate_candidate_suite(
+                seed=seed, fixed_order=fixed_order
+            )
+            self.assertEqual(candidates[0].topological_order, fixed_order)
+            for topology in candidates:
+                active_order = tuple(
+                    node for node in fixed_order if node in topology.active_nodes
+                )
+                self.assertEqual(topology.topological_order, active_order)
+                for source, row in enumerate(topology.adjacency):
+                    for target, edge in enumerate(row):
+                        if edge:
+                            self.assertLess(source, target)
+
+    def test_fixed_role_order_validation(self) -> None:
+        with self.assertRaisesRegex(ValueError, "every node"):
+            generate_candidate_suite(fixed_order=(0, 1, 2, 3, 5))
+        with self.assertRaisesRegex(ValueError, "finalizer last"):
+            generate_candidate_suite(fixed_order=(0, 1, 2, 3, 5, 4))
+
+    def test_fixed_order_anchors_are_shared_across_tasks(self) -> None:
+        order = tuple(range(self.NUM_NODES))
+        first = generate_candidate_suite(seed=42, fixed_order=order)
+        second = generate_candidate_suite(seed=99, fixed_order=order)
+        self.assertEqual(first[:7], second[:7])
+        self.assertNotEqual(first[7:], second[7:])
 
     def test_json_graph_record_shape(self) -> None:
         topology = generate_chain(

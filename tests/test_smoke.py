@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from agp_minimal import (
+from MAS_DAG import (
     AGPTopologyModel,
     DeterministicFeatureBuilder,
     GraphTransformerTopologyModel,

@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import traceback
 
-from agp_minimal.mas_runtime import (
+from MAS_DAG.mas_runtime import (
     TransformersChatBackend,
     VLLMChatBackend,
     run_candidate_graph,
@@ -60,6 +60,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--retry-errors", action="store_true")
     parser.add_argument("--store-node-outputs", action="store_true")
+    parser.add_argument(
+        "--evaluator",
+        choices=("auto", "gsm8k", "math"),
+        default="auto",
+        help="Answer scorer; auto reads each record's evaluator and defaults to gsm8k",
+    )
     return parser.parse_args()
 
 
@@ -105,6 +111,13 @@ def should_execute(graph: dict, retry_errors: bool) -> bool:
     return status != "completed" and (status != "error" or retry_errors)
 
 
+def resolve_evaluator(record: dict, requested: str) -> str:
+    evaluator = record.get("evaluator", "gsm8k") if requested == "auto" else requested
+    if evaluator not in ("gsm8k", "math"):
+        raise ValueError(f"unsupported record evaluator: {evaluator!r}")
+    return evaluator
+
+
 def print_graph_result(graph: dict, reference_answer: object) -> None:
     print(
         f"  prediction={graph['prediction']} reference={reference_answer} "
@@ -144,6 +157,7 @@ async def run_vllm(
         finalizer_id: str,
     ) -> None:
         graph = record["graphs"][graph_index]
+        evaluator = resolve_evaluator(record, args.evaluator)
         graph_id = graph.get("id", f"q{query_index}_g{graph_index}")
         print(f"[{query_index + 1}/{stop}] graph={graph_id}", flush=True)
         try:
@@ -160,6 +174,7 @@ async def run_vllm(
                     token_penalty=args.token_penalty,
                     time_penalty=args.time_penalty,
                     store_node_outputs=args.store_node_outputs,
+                    evaluator=evaluator,
                 )
             graph.update(update)
             graph.pop("execution_error", None)
@@ -236,6 +251,7 @@ def main() -> None:
     for query_index in range(args.query_start, stop):
         record = records[query_index]
         nodes, finalizer_id = resolve_nodes(record, dataset_path)
+        evaluator = resolve_evaluator(record, args.evaluator)
 
         graphs = record["graphs"]
         graph_stop = len(graphs)
@@ -259,6 +275,7 @@ def main() -> None:
                         token_penalty=args.token_penalty,
                         time_penalty=args.time_penalty,
                         store_node_outputs=args.store_node_outputs,
+                        evaluator=evaluator,
                     )
                 )
                 graph.pop("execution_error", None)

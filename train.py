@@ -7,7 +7,7 @@ import random
 import numpy as np
 import torch
 
-from agp_minimal import (
+from MAS_DAG import (
     AGPJsonDataset,
     AGPTopologyModel,
     DEFAULT_TEXT_MODEL,

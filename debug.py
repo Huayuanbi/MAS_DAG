@@ -5,7 +5,7 @@ from pathlib import Path
 
 import torch
 
-from agp_minimal import (
+from MAS_DAG import (
     AGPJsonDataset,
     AGPTopologyModel,
     DEFAULT_TEXT_MODEL,

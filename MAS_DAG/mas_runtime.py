@@ -234,6 +234,77 @@ def gsm8k_exact_match(prediction: str | None, reference: str) -> bool:
         return left == right
 
 
+def _braced_content(text: str, command_start: int) -> str | None:
+    """Return the content of a LaTeX command's balanced {...} argument."""
+    opening = text.find("{", command_start)
+    if opening < 0:
+        return None
+    depth = 1
+    for index in range(opening + 1, len(text)):
+        if text[index] == "{":
+            depth += 1
+        elif text[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[opening + 1 : index].strip()
+    return None
+
+
+def extract_math_answer(text: str) -> str | None:
+    """Extract the final MATH answer while preserving its LaTeX structure."""
+    marker_matches = list(re.finditer(r"FINAL_ANSWER\s*:", text, re.IGNORECASE))
+    answer_region = text[marker_matches[-1].end() :] if marker_matches else text
+    positions = [
+        (answer_region.rfind(command), command)
+        for command in (r"\boxed", r"\fbox")
+    ]
+    position, _ = max(positions, key=lambda item: item[0])
+    if position >= 0:
+        boxed = _braced_content(answer_region, position)
+        if boxed:
+            return boxed
+    if marker_matches:
+        fallback = answer_region.splitlines()[0].strip()
+        fallback = fallback.strip("$ ").strip()
+        return fallback or None
+    return None
+
+
+def math_equivalent(prediction: str | None, reference: str) -> bool:
+    """Compare two MATH answers using symbolic/LaTeX equivalence."""
+    if prediction is None:
+        return False
+    try:
+        from math_verify import parse, verify
+    except ImportError as exc:  # pragma: no cover - depends on installation
+        raise RuntimeError(
+            "MATH evaluation requires math-verify; install with "
+            "`python -m pip install math-verify`"
+        ) from exc
+
+    def latex(value: str) -> str:
+        value = value.strip()
+        if value.startswith("$") and value.endswith("$"):
+            return value
+        return f"${value}$"
+
+    gold = parse(latex(reference))
+    target = parse(latex(prediction))
+    return bool(gold and target and verify(gold, target))
+
+
+def evaluate_answer(
+    output: str, reference: str, evaluator: str
+) -> tuple[str | None, bool]:
+    if evaluator == "gsm8k":
+        prediction = extract_gsm8k_answer(output)
+        return prediction, gsm8k_exact_match(prediction, reference)
+    if evaluator == "math":
+        prediction = extract_math_answer(output)
+        return prediction, math_equivalent(prediction, reference)
+    raise ValueError(f"unsupported evaluator: {evaluator}")
+
+
 def topological_order(mask: Sequence[int], adjacency: Sequence[Sequence[float]]) -> list[int]:
     n = len(mask)
     if len(adjacency) != n or any(len(row) != n for row in adjacency):
@@ -286,6 +357,7 @@ def build_messages(
     predecessor_blocks: Sequence[str],
     *,
     is_finalizer: bool,
+    evaluator: str = "gsm8k",
 ) -> list[dict[str, str]]:
     system = str(node.get("role_brief", node.get("role", "Agent"))).strip()
     system += (
@@ -293,16 +365,38 @@ def build_messages(
         "fallible evidence and check them carefully."
     )
     if is_finalizer:
+        if evaluator == "math":
+            system += (
+                "\nYou are the final answer node. Preserve exact mathematical "
+                "notation and end with exactly 'FINAL_ANSWER: \\boxed{answer}'."
+            )
+        else:
+            system += (
+                "\nYou are the final answer node. End with exactly "
+                "'FINAL_ANSWER: <number>' and no unit on that line."
+            )
+    else:
         system += (
-            "\nYou are the final answer node. End with exactly "
-            "'FINAL_ANSWER: <number>' and no unit on that line."
+            "\nFollow your role restrictions and produce concise output for "
+            "downstream agents."
+        )
+
+    user_template = str(
+        node.get("user_prompt", "Problem:\n{question}")
+    ).strip()
+    if "{question}" not in user_template:
+        raise ValueError(
+            f"user_prompt for node {node.get('id', '<unknown>')!r} "
+            "must contain the {question} placeholder"
+        )
+    context = "\n".join(predecessor_blocks)
+    if "{context}" in user_template:
+        user = user_template.replace("{question}", task.strip()).replace(
+            "{context}", context or "No predecessor agent output is available."
         )
     else:
-        system += "\nExplain your result concisely for downstream agents."
-
-    context = "\n".join(predecessor_blocks)
-    user = f"Problem:\n{task.strip()}"
-    if context:
+        user = user_template.replace("{question}", task.strip())
+    if context and "{context}" not in user_template:
         user += f"\n\nAvailable upstream outputs:\n{context}"
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
@@ -318,6 +412,7 @@ def run_candidate_graph(
     token_penalty: float = 0.0,
     time_penalty: float = 0.0,
     store_node_outputs: bool = False,
+    evaluator: str = "gsm8k",
 ) -> dict:
     """Execute one candidate DAG and return fields to merge into its JSON record."""
     mask = graph["mask"]
@@ -364,6 +459,7 @@ def run_candidate_graph(
             nodes[target],
             blocks,
             is_finalizer=target == finalizer,
+            evaluator=evaluator,
         )
         result = backend.generate(messages)
         outputs[target] = result.text
@@ -379,8 +475,10 @@ def run_candidate_graph(
                 )
 
     wall_time = time.perf_counter() - wall_started
-    prediction = extract_gsm8k_answer(outputs[finalizer])
-    accuracy = float(gsm8k_exact_match(prediction, reference_answer))
+    prediction, is_correct = evaluate_answer(
+        outputs[finalizer], reference_answer, evaluator
+    )
+    accuracy = float(is_correct)
     total_input_tokens = sum(input_tokens)
     total_output_tokens = sum(output_tokens)
     total_tokens = total_input_tokens + total_output_tokens
@@ -389,6 +487,7 @@ def run_candidate_graph(
         "reward": float(reward),
         "accuracy": accuracy,
         "prediction": prediction,
+        "answer_evaluator": evaluator,
         "edge_token_cost": edge_tokens,
         "edge_time_cost": edge_times,
         "node_input_token_cost": input_tokens,
@@ -416,6 +515,7 @@ async def run_candidate_graph_async(
     token_penalty: float = 0.0,
     time_penalty: float = 0.0,
     store_node_outputs: bool = False,
+    evaluator: str = "gsm8k",
 ) -> dict:
     """Async graph execution used for concurrent requests to a vLLM server."""
     mask = graph["mask"]
@@ -458,7 +558,11 @@ async def run_candidate_graph_async(
         blocks = [predecessor_block(nodes[source], outputs[source]) for source in predecessors]
         block_token_counts = [backend.count_tokens(block) for block in blocks]
         messages = build_messages(
-            task, nodes[target], blocks, is_finalizer=target == finalizer
+            task,
+            nodes[target],
+            blocks,
+            is_finalizer=target == finalizer,
+            evaluator=evaluator,
         )
         result = await backend.generate(messages)
         outputs[target] = result.text
@@ -474,8 +578,10 @@ async def run_candidate_graph_async(
                 )
 
     wall_time = time.perf_counter() - wall_started
-    prediction = extract_gsm8k_answer(outputs[finalizer])
-    accuracy = float(gsm8k_exact_match(prediction, reference_answer))
+    prediction, is_correct = evaluate_answer(
+        outputs[finalizer], reference_answer, evaluator
+    )
+    accuracy = float(is_correct)
     total_input_tokens = sum(input_tokens)
     total_output_tokens = sum(output_tokens)
     total_tokens = total_input_tokens + total_output_tokens
@@ -484,6 +590,7 @@ async def run_candidate_graph_async(
         "reward": float(reward),
         "accuracy": accuracy,
         "prediction": prediction,
+        "answer_evaluator": evaluator,
         "edge_token_cost": edge_tokens,
         "edge_time_cost": edge_times,
         "node_input_token_cost": input_tokens,

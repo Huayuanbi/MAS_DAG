@@ -52,7 +52,7 @@
 conda activate agp
 cd /home/yz/Documents/MAS_DAG/AGP-minimal
 
-python -c "from agp_minimal import AGPJsonDataset, PairwiseRewardDataset; d=AGPJsonDataset('data/example.json'); p=PairwiseRewardDataset(d); print(len(d), len(p), p[0].reward_gap)"
+python -c "from MAS_DAG import AGPJsonDataset, PairwiseRewardDataset; d=AGPJsonDataset('data/example.json'); p=PairwiseRewardDataset(d); print(len(d), len(p), p[0].reward_gap)"
 
 # auto 会检测到 reward pair，并自动选择 pairwise loss
 python train.py --data data/example.json --max-records 1 --objective auto

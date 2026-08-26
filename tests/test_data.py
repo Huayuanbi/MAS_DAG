@@ -5,7 +5,7 @@ import unittest
 
 import torch
 
-from agp_minimal import AGPJsonDataset, PairwiseRewardDataset
+from MAS_DAG import AGPJsonDataset, PairwiseRewardDataset
 
 
 ROOT = Path(__file__).resolve().parents[1]
