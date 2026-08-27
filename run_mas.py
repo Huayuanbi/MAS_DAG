@@ -53,6 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--token-penalty", type=float, default=0.0)
     parser.add_argument("--time-penalty", type=float, default=0.0)
+    parser.add_argument("--evaluation-timeout", type=float, default=5.0)
     parser.add_argument("--query-start", type=int, default=0)
     parser.add_argument("--max-queries", type=int, default=None)
     parser.add_argument("--max-graphs-per-query", type=int, default=None)
@@ -62,7 +63,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--store-node-outputs", action="store_true")
     parser.add_argument(
         "--evaluator",
-        choices=("auto", "gsm8k", "math"),
+        choices=("auto", "gsm8k", "math", "humaneval", "mmlu_pro"),
         default="auto",
         help="Answer scorer; auto reads each record's evaluator and defaults to gsm8k",
     )
@@ -113,7 +114,7 @@ def should_execute(graph: dict, retry_errors: bool) -> bool:
 
 def resolve_evaluator(record: dict, requested: str) -> str:
     evaluator = record.get("evaluator", "gsm8k") if requested == "auto" else requested
-    if evaluator not in ("gsm8k", "math"):
+    if evaluator not in ("gsm8k", "math", "humaneval", "mmlu_pro"):
         raise ValueError(f"unsupported record evaluator: {evaluator!r}")
     return evaluator
 
@@ -175,9 +176,13 @@ async def run_vllm(
                     time_penalty=args.time_penalty,
                     store_node_outputs=args.store_node_outputs,
                     evaluator=evaluator,
+                    evaluation_metadata=record.get("source_metadata"),
+                    evaluation_timeout=args.evaluation_timeout,
                 )
             graph.update(update)
             graph.pop("execution_error", None)
+            if graph.get("accuracy") == 1.0:
+                graph.pop("evaluation_error", None)
             print_graph_result(graph, record["reference_answer"])
         except Exception as exc:
             graph["execution_status"] = "error"
@@ -218,6 +223,8 @@ def main() -> None:
         raise ValueError("concurrency must be positive")
     if args.token_penalty < 0 or args.time_penalty < 0:
         raise ValueError("cost penalties must be non-negative")
+    if args.evaluation_timeout <= 0:
+        raise ValueError("evaluation-timeout must be positive")
 
     if args.resume and args.output.exists():
         records = load_json(args.output)
@@ -276,9 +283,13 @@ def main() -> None:
                         time_penalty=args.time_penalty,
                         store_node_outputs=args.store_node_outputs,
                         evaluator=evaluator,
+                        evaluation_metadata=record.get("source_metadata"),
+                        evaluation_timeout=args.evaluation_timeout,
                     )
                 )
                 graph.pop("execution_error", None)
+                if graph.get("accuracy") == 1.0:
+                    graph.pop("evaluation_error", None)
                 print_graph_result(graph, record["reference_answer"])
             except Exception as exc:
                 graph["execution_status"] = "error"

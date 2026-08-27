@@ -1,0 +1,7 @@
+{"id":"aime_6_roles_v1","finalizer_id":"agent_5","nodes":[
+{"id":"agent_0","role":"problem_analyst","role_brief":"Extract mathematical conditions and identify the target.","user_prompt":"Analyze:\n{question}"},
+{"id":"agent_1","role":"strategy_planner","role_brief":"Choose rigorous competition-math strategies.","user_prompt":"Plan a solution:\n{question}\n\nEvidence:\n{context}"},
+{"id":"agent_2","role":"primary_solver","role_brief":"Solve step by step with exact arithmetic.","user_prompt":"Solve:\n{question}\n\nEvidence:\n{context}"},
+{"id":"agent_3","role":"alternative_solver","role_brief":"Find an independent solution or verification.","user_prompt":"Solve independently:\n{question}\n\nEvidence:\n{context}"},
+{"id":"agent_4","role":"verifier","role_brief":"Verify derivation, arithmetic, and AIME answer constraints.","user_prompt":"Verify:\n{question}\n\nEvidence:\n{context}"},
+{"id":"agent_5","role":"finalizer","role_brief":"Return the exact final AIME integer answer.","user_prompt":"Finalize:\n{question}\n\nEvidence:\n{context}"}]}

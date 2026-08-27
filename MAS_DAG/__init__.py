@@ -13,14 +13,23 @@ from .features import (
     bidirectional_chain_edge_index,
     fully_connected_edge_index,
 )
-from .losses import (
-    PairwiseTopologyLoss,
-    TopologyLoss,
-    agp_stage2_loss,
-    graph_log_likelihood_score,
-    pairwise_reward_loss,
-)
-from .model import AGPTopologyModel, GraphTransformerTopologyModel, TopologyOutput
+# Candidate generation and MAS execution do not need torch-geometric. Keep
+# those workflows usable in the lightweight vLLM client environment while the
+# training symbols remain available whenever the optional dependency exists.
+try:
+    from .losses import (
+        PairwiseTopologyLoss,
+        TopologyLoss,
+        agp_stage2_loss,
+        graph_log_likelihood_score,
+        pairwise_reward_loss,
+    )
+    from .model import AGPTopologyModel, GraphTransformerTopologyModel, TopologyOutput
+    _TRAINING_EXPORTS_AVAILABLE = True
+except ModuleNotFoundError as exc:
+    if exc.name != "torch_geometric":
+        raise
+    _TRAINING_EXPORTS_AVAILABLE = False
 from .topology_sampling import (
     DEFAULT_ACTIVE_COUNT_WEIGHTS,
     DEFAULT_GSM8K_ROLES,
@@ -72,3 +81,11 @@ __all__ = [
     "pairwise_reward_loss",
     "validate_topology",
 ]
+
+if not _TRAINING_EXPORTS_AVAILABLE:
+    _training_names = {
+        "AGPTopologyModel", "GraphTransformerTopologyModel", "TopologyOutput",
+        "PairwiseTopologyLoss", "TopologyLoss", "agp_stage2_loss",
+        "graph_log_likelihood_score", "pairwise_reward_loss",
+    }
+    __all__ = [name for name in __all__ if name not in _training_names]

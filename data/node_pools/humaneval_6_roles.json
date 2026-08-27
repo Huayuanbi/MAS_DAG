@@ -1,0 +1,42 @@
+{
+  "id": "humaneval_6_roles_v1",
+  "finalizer_id": "agent_5",
+  "nodes": [
+    {
+      "id": "agent_0",
+      "role": "spec_analyst",
+      "role_brief": "Analyze the Python function contract, examples, constraints, types, and edge cases. Do not implement the function.",
+      "user_prompt": "Analyze this HumanEval task for downstream agents:\n\n{question}"
+    },
+    {
+      "id": "agent_1",
+      "role": "algorithm_designer",
+      "role_brief": "Design a correct and efficient algorithm from the specification. Focus on logic and edge cases rather than final code.",
+      "user_prompt": "Design an algorithm for this HumanEval task:\n\n{question}\n\nUpstream evidence:\n{context}"
+    },
+    {
+      "id": "agent_2",
+      "role": "primary_coder",
+      "role_brief": "Write a complete, executable, idiomatic Python implementation matching the requested signature.",
+      "user_prompt": "Implement this HumanEval function:\n\n{question}\n\nUpstream evidence:\n{context}"
+    },
+    {
+      "id": "agent_3",
+      "role": "test_designer",
+      "role_brief": "Derive adversarial test cases and identify boundary conditions and likely implementation failures. Do not provide the final implementation.",
+      "user_prompt": "Test the reasoning for this HumanEval task:\n\n{question}\n\nUpstream evidence:\n{context}"
+    },
+    {
+      "id": "agent_4",
+      "role": "code_reviewer",
+      "role_brief": "Review candidate logic and code for semantic, syntax, complexity, and edge-case defects, and give concrete corrections.",
+      "user_prompt": "Review solutions for this HumanEval task:\n\n{question}\n\nUpstream evidence:\n{context}"
+    },
+    {
+      "id": "agent_5",
+      "role": "finalizer",
+      "role_brief": "Produce the final complete Python function implementation. Return code only, without tests or prose.",
+      "user_prompt": "Return the final implementation for this HumanEval task:\n\n{question}\n\nUpstream evidence:\n{context}"
+    }
+  ]
+}

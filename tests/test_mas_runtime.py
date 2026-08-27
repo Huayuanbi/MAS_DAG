@@ -5,6 +5,7 @@ from MAS_DAG.mas_runtime import (
     GenerationResult,
     build_messages,
     extract_gsm8k_answer,
+    evaluate_humaneval,
     extract_math_answer,
     math_equivalent,
     run_candidate_graph,
@@ -102,6 +103,37 @@ class MasRuntimeTest(unittest.TestCase):
         self.assertIsNone(extract_gsm8k_answer("truncated calculation: 10 - 2 = 8"))
         with self.assertRaisesRegex(ValueError, "DAG"):
             topological_order([0, 0], [[0, 1], [1, 0]])
+
+    def test_humaneval_pass_fail_reward_signal(self) -> None:
+        metadata = {
+            "prompt": "def add(a, b):\n    pass\n",
+            "test": "def check(candidate):\n    assert candidate(2, 3) == 5",
+            "entry_point": "add",
+        }
+        prediction, passed, error = evaluate_humaneval(
+            "```python\ndef add(a, b):\n    return a + b\n```", metadata
+        )
+        self.assertIn("return a + b", prediction)
+        self.assertTrue(passed)
+        self.assertIsNone(error)
+
+        _, passed, error = evaluate_humaneval(
+            "def add(a, b):\n    return a - b", metadata
+        )
+        self.assertFalse(passed)
+        self.assertIsNotNone(error)
+
+    def test_humaneval_preserves_prompt_imports_for_full_function(self) -> None:
+        metadata = {
+            "prompt": "from typing import List\n\ndef first(xs: List[int]):\n    pass\n",
+            "test": "def check(candidate):\n    assert candidate([3]) == 3",
+            "entry_point": "first",
+        }
+        _, passed, error = evaluate_humaneval(
+            "def first(xs: List[int]):\n    return xs[0]", metadata
+        )
+        self.assertTrue(passed)
+        self.assertIsNone(error)
 
     def test_math_answer_extraction_and_equivalence(self) -> None:
         output = (

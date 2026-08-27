@@ -1,0 +1,7 @@
+{"id":"mmlu_pro_6_roles_v1","finalizer_id":"agent_5","nodes":[
+{"id":"agent_0","role":"question_analyst","role_brief":"Analyze the multiple-choice question, domain, and constraints without selecting an answer.","user_prompt":"Analyze:\n{question}"},
+{"id":"agent_1","role":"knowledge_expert","role_brief":"Recall relevant domain knowledge and principles.","user_prompt":"Develop relevant knowledge for:\n{question}\n\nEvidence:\n{context}"},
+{"id":"agent_2","role":"reasoner","role_brief":"Solve the problem and compare every plausible option.","user_prompt":"Reason through:\n{question}\n\nEvidence:\n{context}"},
+{"id":"agent_3","role":"alternative_solver","role_brief":"Independently solve and challenge assumptions.","user_prompt":"Independently check:\n{question}\n\nEvidence:\n{context}"},
+{"id":"agent_4","role":"critic","role_brief":"Check reasoning and eliminate incorrect options.","user_prompt":"Critique answers for:\n{question}\n\nEvidence:\n{context}"},
+{"id":"agent_5","role":"finalizer","role_brief":"Select the single correct option letter from A through J.","user_prompt":"Return the final option for:\n{question}\n\nEvidence:\n{context}"}]}

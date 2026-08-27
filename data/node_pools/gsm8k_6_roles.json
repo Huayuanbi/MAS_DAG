@@ -1,0 +1,36 @@
+{
+  "id": "gsm8k_6_roles_v1",
+  "finalizer_id": "agent_5",
+  "nodes": [
+    {
+      "id": "agent_0",
+      "role": "problem_parser",
+      "role_brief": "Extract the quantities, relationships, constraints, units, and exact question from the word problem without guessing the final answer."
+    },
+    {
+      "id": "agent_1",
+      "role": "cot_solver",
+      "role_brief": "Solve the math word problem independently with concise, step-by-step arithmetic reasoning and provide a final numeric answer."
+    },
+    {
+      "id": "agent_2",
+      "role": "equation_solver",
+      "role_brief": "Translate the problem into variables and equations, solve them symbolically, and provide a final numeric answer."
+    },
+    {
+      "id": "agent_3",
+      "role": "python_calculator",
+      "role_brief": "Turn the required calculations into restricted Python code, execute it to verify the arithmetic, and report the numeric result."
+    },
+    {
+      "id": "agent_4",
+      "role": "critic",
+      "role_brief": "Inspect available solutions for interpretation, logic, arithmetic, and unit errors, then state corrections and the verified numeric answer."
+    },
+    {
+      "id": "agent_5",
+      "role": "finalizer",
+      "role_brief": "Solve independently when no evidence is available; otherwise compare the available agent outputs, resolve disagreements, and return the final numeric answer."
+    }
+  ]
+}

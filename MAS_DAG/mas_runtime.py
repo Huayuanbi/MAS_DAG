@@ -2,8 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+import asyncio
 from pathlib import Path
 import re
+import subprocess
+import sys
+import tempfile
 import time
 from typing import Protocol, Sequence
 
@@ -293,8 +297,73 @@ def math_equivalent(prediction: str | None, reference: str) -> bool:
     return bool(gold and target and verify(gold, target))
 
 
+def extract_python_code(text: str) -> str:
+    blocks = re.findall(r"```(?:python)?\s*\n(.*?)```", text, flags=re.I | re.S)
+    return (blocks[-1] if blocks else text).strip()
+
+
+def evaluate_humaneval(
+    output: str,
+    metadata: dict,
+    *,
+    timeout: float = 5.0,
+) -> tuple[str, bool, str | None]:
+    """Execute HumanEval tests in a fresh process (not a security sandbox)."""
+    if timeout <= 0:
+        raise ValueError("evaluation timeout must be positive")
+    required = ("prompt", "test", "entry_point")
+    missing = [key for key in required if key not in metadata]
+    if missing:
+        raise ValueError(f"HumanEval metadata missing: {', '.join(missing)}")
+    prediction = extract_python_code(output)
+    entry_point = str(metadata["entry_point"])
+    defines_function = re.search(
+        rf"(?m)^\s*def\s+{re.escape(entry_point)}\s*\(", prediction
+    )
+    prompt = str(metadata["prompt"])
+    if defines_function:
+        # HumanEval prompts may define imports/types before the target function.
+        # Keep that preamble even when the model returns a complete replacement
+        # function; otherwise valid annotations such as List[str] raise NameError.
+        prompt_function = re.search(
+            rf"(?m)^\s*def\s+{re.escape(entry_point)}\s*\(", prompt
+        )
+        preamble = prompt[: prompt_function.start()] if prompt_function else ""
+        solution = f"{preamble}{prediction}"
+    else:
+        solution = f"{prompt}{prediction}"
+    program = (
+        f"{solution.rstrip()}\n\n{str(metadata['test']).rstrip()}\n"
+        f"check({entry_point})\n"
+    )
+    with tempfile.TemporaryDirectory(prefix="mas_humaneval_") as directory:
+        try:
+            result = subprocess.run(
+                [sys.executable, "-I", "-c", program],
+                cwd=directory,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return prediction, False, f"timeout after {timeout:g}s"
+    if result.returncode == 0:
+        return prediction, True, None
+    lines = result.stderr.strip().splitlines()
+    error = lines[-1] if lines else f"exit code {result.returncode}"
+    return prediction, False, error
+
+
 def evaluate_answer(
-    output: str, reference: str, evaluator: str
+    output: str,
+    reference: str,
+    evaluator: str,
+    *,
+    evaluation_metadata: dict | None = None,
+    evaluation_timeout: float = 5.0,
 ) -> tuple[str | None, bool]:
     if evaluator == "gsm8k":
         prediction = extract_gsm8k_answer(output)
@@ -302,6 +371,20 @@ def evaluate_answer(
     if evaluator == "math":
         prediction = extract_math_answer(output)
         return prediction, math_equivalent(prediction, reference)
+    if evaluator == "mmlu_pro":
+        matches = re.findall(
+            r"(?:FINAL_ANSWER\s*:\s*|answer\s+is\s*\(?)([A-J])\b",
+            output, flags=re.IGNORECASE,
+        )
+        prediction = matches[-1].upper() if matches else None
+        return prediction, prediction == reference.strip().upper()
+    if evaluator == "humaneval":
+        if evaluation_metadata is None:
+            raise ValueError("HumanEval requires evaluation metadata")
+        prediction, passed, _ = evaluate_humaneval(
+            output, evaluation_metadata, timeout=evaluation_timeout
+        )
+        return prediction, passed
     raise ValueError(f"unsupported evaluator: {evaluator}")
 
 
@@ -365,7 +448,17 @@ def build_messages(
         "fallible evidence and check them carefully."
     )
     if is_finalizer:
-        if evaluator == "math":
+        if evaluator == "mmlu_pro":
+            system += (
+                "\nYou are the final answer node. End with exactly "
+                "'FINAL_ANSWER: X', where X is one option letter A through J."
+            )
+        elif evaluator == "humaneval":
+            system += (
+                "\nYou are the final answer node. Return only a complete executable "
+                "Python function including its def line. Do not include tests or prose."
+            )
+        elif evaluator == "math":
             system += (
                 "\nYou are the final answer node. Preserve exact mathematical "
                 "notation and end with exactly 'FINAL_ANSWER: \\boxed{answer}'."
@@ -413,6 +506,8 @@ def run_candidate_graph(
     time_penalty: float = 0.0,
     store_node_outputs: bool = False,
     evaluator: str = "gsm8k",
+    evaluation_metadata: dict | None = None,
+    evaluation_timeout: float = 5.0,
 ) -> dict:
     """Execute one candidate DAG and return fields to merge into its JSON record."""
     mask = graph["mask"]
@@ -475,9 +570,17 @@ def run_candidate_graph(
                 )
 
     wall_time = time.perf_counter() - wall_started
-    prediction, is_correct = evaluate_answer(
-        outputs[finalizer], reference_answer, evaluator
-    )
+    evaluation_error = None
+    if evaluator == "humaneval":
+        if evaluation_metadata is None:
+            raise ValueError("HumanEval requires evaluation metadata")
+        prediction, is_correct, evaluation_error = evaluate_humaneval(
+            outputs[finalizer], evaluation_metadata, timeout=evaluation_timeout
+        )
+    else:
+        prediction, is_correct = evaluate_answer(
+            outputs[finalizer], reference_answer, evaluator
+        )
     accuracy = float(is_correct)
     total_input_tokens = sum(input_tokens)
     total_output_tokens = sum(output_tokens)
@@ -499,6 +602,8 @@ def run_candidate_graph(
         "wall_time_seconds": wall_time,
         "execution_status": "completed",
     }
+    if evaluation_error is not None:
+        update["evaluation_error"] = evaluation_error
     if store_node_outputs:
         update["node_outputs"] = [outputs.get(index) for index in range(n)]
     return update
@@ -516,6 +621,8 @@ async def run_candidate_graph_async(
     time_penalty: float = 0.0,
     store_node_outputs: bool = False,
     evaluator: str = "gsm8k",
+    evaluation_metadata: dict | None = None,
+    evaluation_timeout: float = 5.0,
 ) -> dict:
     """Async graph execution used for concurrent requests to a vLLM server."""
     mask = graph["mask"]
@@ -578,9 +685,20 @@ async def run_candidate_graph_async(
                 )
 
     wall_time = time.perf_counter() - wall_started
-    prediction, is_correct = evaluate_answer(
-        outputs[finalizer], reference_answer, evaluator
-    )
+    evaluation_error = None
+    if evaluator == "humaneval":
+        if evaluation_metadata is None:
+            raise ValueError("HumanEval requires evaluation metadata")
+        prediction, is_correct, evaluation_error = await asyncio.to_thread(
+            evaluate_humaneval,
+            outputs[finalizer],
+            evaluation_metadata,
+            timeout=evaluation_timeout,
+        )
+    else:
+        prediction, is_correct = evaluate_answer(
+            outputs[finalizer], reference_answer, evaluator
+        )
     accuracy = float(is_correct)
     total_input_tokens = sum(input_tokens)
     total_output_tokens = sum(output_tokens)
@@ -602,6 +720,8 @@ async def run_candidate_graph_async(
         "wall_time_seconds": wall_time,
         "execution_status": "completed",
     }
+    if evaluation_error is not None:
+        update["evaluation_error"] = evaluation_error
     if store_node_outputs:
         update["node_outputs"] = [outputs.get(index) for index in range(n)]
     return update
