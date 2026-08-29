@@ -114,6 +114,13 @@ class MasRuntimeTest(unittest.TestCase):
         self.assertTrue(math_equivalent(r"\{1,2\}", r"\{2,1\}"))
         self.assertFalse(math_equivalent(r"\frac{1}{3}", r"\frac{1}{2}"))
 
+    def test_math_answer_survives_truncated_reasoning(self) -> None:
+        output = (
+            r"FINAL_ANSWER: \boxed{20}" "\n"
+            r"Long reasoning with an intermediate \boxed{16} that is truncated..."
+        )
+        self.assertEqual(extract_math_answer(output), "20")
+
     def test_math_graph_execution(self) -> None:
         class MathBackend(FakeBackend):
             def generate(self, messages):
@@ -143,6 +150,76 @@ class MasRuntimeTest(unittest.TestCase):
         self.assertEqual(result["accuracy"], 1.0)
         self.assertEqual(result["answer_evaluator"], "math")
 
+    def test_graph_sampling_seed_reaches_backend(self) -> None:
+        class SeedBackend(FakeBackend):
+            def __init__(self):
+                self.seeds = []
+
+            def generate(self, messages, *, seed=None):
+                self.seeds.append(seed)
+                return super().generate(messages)
+
+        backend = SeedBackend()
+        graph = {
+            "mask": [1, 1, 0],
+            "edge_weight": [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+            "sampling_seed": 45,
+        }
+        run_candidate_graph(
+            task="Compute 1 + 1.",
+            reference_answer="2",
+            nodes=self.NODES,
+            graph=graph,
+            finalizer_id="f",
+            backend=backend,
+        )
+        self.assertEqual(backend.seeds, [45])
+
+    def test_missing_answer_uses_short_recovery_request(self) -> None:
+        class RecoveryBackend:
+            def __init__(self):
+                self.calls = []
+
+            def count_tokens(self, text):
+                return len(text.split())
+
+            def generate(self, messages, *, seed=None, max_new_tokens=None):
+                self.calls.append((seed, max_new_tokens))
+                text = (
+                    "unfinished reasoning without an answer"
+                    if len(self.calls) == 1
+                    else r"FINAL_ANSWER: \boxed{2}"
+                )
+                return GenerationResult(
+                    text=text,
+                    input_tokens=10,
+                    output_tokens=5,
+                    latency_seconds=0.1,
+                    finish_reason="stop",
+                )
+
+        backend = RecoveryBackend()
+        graph = {
+            "mask": [1, 1, 0],
+            "edge_weight": [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+            "sampling_seed": 45,
+        }
+        result = run_candidate_graph(
+            task="Compute 1 + 1.",
+            reference_answer="2",
+            nodes=self.NODES,
+            graph=graph,
+            finalizer_id="f",
+            backend=backend,
+            evaluator="math",
+            store_node_outputs=True,
+        )
+        self.assertEqual(result["prediction"], "2")
+        self.assertEqual(backend.calls, [(45, None), (2_000_048, 128)])
+        self.assertTrue(result["answer_recovery_attempted"])
+        self.assertEqual(result["answer_recovery_output_tokens"], 5)
+        self.assertIn("[ANSWER_RECOVERY]", result["node_outputs"][2])
+
     def test_node_specific_user_prompt(self) -> None:
         node = {
             "id": "analyst",
@@ -156,6 +233,12 @@ class MasRuntimeTest(unittest.TestCase):
         self.assertEqual(messages[0]["content"].splitlines()[0], "Analyze only.")
         self.assertIn("Question:\nFind x.\n\nDo not solve it.", messages[1]["content"])
         self.assertIn("Available upstream outputs", messages[1]["content"])
+
+    def test_finalizer_must_put_answer_first(self) -> None:
+        node = {"id": "f", "role": "finalizer", "role_brief": "Decide."}
+        messages = build_messages("Find x.", node, [], is_finalizer=True, evaluator="math")
+        self.assertIn("Before any explanation", messages[0]["content"])
+        self.assertIn("Never omit this line", messages[0]["content"])
 
     def test_context_placeholder_uses_only_predecessors(self) -> None:
         node = {

@@ -2,3 +2,12 @@
 !/data/README.md
 !/data/example.json
 !/data/example.annotated.jsonc
+
+# Local environments, IDE settings, caches, and model weights.
+.vscode/
+__pycache__/
+*.py[cod]
+/Qwen3-4B/
+/ModernBERT-base/
+/models/
+*.pt

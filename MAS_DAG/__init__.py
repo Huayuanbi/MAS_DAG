@@ -20,7 +20,12 @@ from .losses import (
     graph_log_likelihood_score,
     pairwise_reward_loss,
 )
-from .model import AGPTopologyModel, GraphTransformerTopologyModel, TopologyOutput
+from .model import (
+    AGPTopologyModel,
+    GraphTransformerTopologyModel,
+    TopologyOutput,
+)
+from .modernbert_guided_model import ModernBertGuidedGraphTopologyModel
 from .topology_sampling import (
     DEFAULT_ACTIVE_COUNT_WEIGHTS,
     DEFAULT_GSM8K_ROLES,
@@ -29,6 +34,8 @@ from .topology_sampling import (
     generate_chain,
     generate_complete_dag,
     generate_finalizer_only,
+    generate_math_role_anchors,
+    generate_math_random_dag,
     generate_random_dag,
     generate_sparse_random,
     generate_star,
@@ -45,6 +52,7 @@ __all__ = [
     "DEFAULT_GSM8K_ROLES",
     "DeterministicFeatureBuilder",
     "GraphTransformerTopologyModel",
+    "ModernBertGuidedGraphTopologyModel",
     "NodeSpec",
     "PairwiseRewardDataset",
     "PairwiseTopologyLoss",
@@ -64,6 +72,8 @@ __all__ = [
     "generate_chain",
     "generate_complete_dag",
     "generate_finalizer_only",
+    "generate_math_role_anchors",
+    "generate_math_random_dag",
     "generate_random_dag",
     "generate_sparse_random",
     "generate_star",

@@ -6,6 +6,8 @@ from MAS_DAG import (
     generate_chain,
     generate_complete_dag,
     generate_finalizer_only,
+    generate_math_role_anchors,
+    generate_math_random_dag,
     generate_random_dag,
     generate_sparse_random,
     generate_star,
@@ -123,6 +125,76 @@ class TopologySamplingTest(unittest.TestCase):
         second = generate_candidate_suite(seed=99, fixed_order=order)
         self.assertEqual(first[:7], second[:7])
         self.assertNotEqual(first[7:], second[7:])
+
+    def test_math_role_aware_anchors(self) -> None:
+        roles = {
+            "problem_analyst": 0,
+            "strategy_planner": 1,
+            "primary_solver": 2,
+            "alternative_solver": 3,
+            "symbolic_proof_verifier": 4,
+            "finalizer": 5,
+        }
+        anchors = generate_math_role_anchors(
+            self.NUM_NODES,
+            self.FINALIZER,
+            roles,
+            fixed_order=tuple(range(self.NUM_NODES)),
+        )
+        self.assertEqual(
+            [item.generator for item in anchors],
+            [
+                "expert_anchor",
+                "primary_pipeline",
+                "dual_solver_review",
+                "dual_solver_direct",
+                "planned_primary",
+            ],
+        )
+        expert = anchors[0]
+        self.assertEqual(expert.num_edges, 7)
+        self.assertEqual(expert.adjacency[2][5], 1)
+        self.assertEqual(expert.adjacency[3][5], 1)
+        self.assertEqual(expert.adjacency[4][5], 1)
+        primary = anchors[1]
+        self.assertEqual(primary.mask[3], 1)
+        self.assertEqual(primary.active_nodes, (0, 1, 2, 4, 5))
+
+        suite = generate_candidate_suite(
+            seed=42,
+            fixed_order=tuple(range(self.NUM_NODES)),
+            role_indices=roles,
+        )
+        self.assertEqual(len(suite), 12)
+        self.assertEqual(
+            [item.generator for item in suite[:7]],
+            [
+                "expert_anchor",
+                "primary_pipeline",
+                "dual_solver_review",
+                "dual_solver_direct",
+                "planned_primary",
+                "finalizer_only",
+                "two_node",
+            ],
+        )
+
+        allowed_edges = {
+            (0, 1), (0, 2), (0, 3),
+            (1, 2), (1, 3),
+            (2, 4), (2, 5),
+            (3, 4), (3, 5),
+            (4, 5),
+        }
+        for topology in suite[7:]:
+            self.assertTrue(2 in topology.active_nodes or 3 in topology.active_nodes)
+            actual_edges = {
+                (source, target)
+                for source, row in enumerate(topology.adjacency)
+                for target, edge in enumerate(row)
+                if edge
+            }
+            self.assertTrue(actual_edges.issubset(allowed_edges))
 
     def test_json_graph_record_shape(self) -> None:
         topology = generate_chain(

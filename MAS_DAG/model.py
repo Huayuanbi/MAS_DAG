@@ -80,7 +80,6 @@ class AGPTopologyModel(torch.nn.Module):
             edge_prob=edge_prob,
         )
 
-
 class GraphTransformerBlock(torch.nn.Module):
     def __init__(
         self,

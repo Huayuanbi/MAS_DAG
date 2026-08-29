@@ -18,13 +18,25 @@ class GenerationResult:
 
 
 class ChatBackend(Protocol):
-    def generate(self, messages: Sequence[dict[str, str]]) -> GenerationResult: ...
+    def generate(
+        self,
+        messages: Sequence[dict[str, str]],
+        *,
+        seed: int | None = None,
+        max_new_tokens: int | None = None,
+    ) -> GenerationResult: ...
 
     def count_tokens(self, text: str) -> int: ...
 
 
 class AsyncChatBackend(Protocol):
-    async def generate(self, messages: Sequence[dict[str, str]]) -> GenerationResult: ...
+    async def generate(
+        self,
+        messages: Sequence[dict[str, str]],
+        *,
+        seed: int | None = None,
+        max_new_tokens: int | None = None,
+    ) -> GenerationResult: ...
 
     def count_tokens(self, text: str) -> int: ...
 
@@ -82,12 +94,19 @@ class TransformersChatBackend:
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
         self.enable_thinking = enable_thinking
+        self.seed = seed
         torch.manual_seed(seed)
 
     def count_tokens(self, text: str) -> int:
         return len(self.tokenizer.encode(text, add_special_tokens=False))
 
-    def generate(self, messages: Sequence[dict[str, str]]) -> GenerationResult:
+    def generate(
+        self,
+        messages: Sequence[dict[str, str]],
+        *,
+        seed: int | None = None,
+        max_new_tokens: int | None = None,
+    ) -> GenerationResult:
         template_kwargs = {
             "tokenize": True,
             "add_generation_prompt": True,
@@ -102,13 +121,15 @@ class TransformersChatBackend:
             model_inputs = self.tokenizer.apply_chat_template(messages, **template_kwargs)
         model_inputs = {key: value.to(self.device) for key, value in model_inputs.items()}
         input_tokens = int(model_inputs["attention_mask"].sum().item())
+        generation_limit = self.max_new_tokens if max_new_tokens is None else max_new_tokens
         generation_kwargs = {
-            "max_new_tokens": self.max_new_tokens,
+            "max_new_tokens": generation_limit,
             "do_sample": self.temperature > 0,
             "pad_token_id": self.tokenizer.eos_token_id,
         }
         if self.temperature > 0:
             generation_kwargs["temperature"] = self.temperature
+            self.torch.manual_seed(self.seed if seed is None else seed)
 
         if self.device.startswith("cuda"):
             self.torch.cuda.synchronize()
@@ -127,7 +148,7 @@ class TransformersChatBackend:
             output_tokens=int(generated_ids.numel()),
             latency_seconds=latency,
             finish_reason=(
-                "length" if int(generated_ids.numel()) >= self.max_new_tokens else "stop"
+                "length" if int(generated_ids.numel()) >= generation_limit else "stop"
             ),
         )
 
@@ -176,14 +197,20 @@ class VLLMChatBackend:
     def count_tokens(self, text: str) -> int:
         return len(self.tokenizer.encode(text, add_special_tokens=False))
 
-    async def generate(self, messages: Sequence[dict[str, str]]) -> GenerationResult:
+    async def generate(
+        self,
+        messages: Sequence[dict[str, str]],
+        *,
+        seed: int | None = None,
+        max_new_tokens: int | None = None,
+    ) -> GenerationResult:
         started = time.perf_counter()
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=list(messages),
             temperature=self.temperature,
-            max_tokens=self.max_new_tokens,
-            seed=self.seed,
+            max_tokens=self.max_new_tokens if max_new_tokens is None else max_new_tokens,
+            seed=self.seed if seed is None else seed,
             extra_body={
                 "chat_template_kwargs": {"enable_thinking": self.enable_thinking}
             },
@@ -253,7 +280,21 @@ def _braced_content(text: str, command_start: int) -> str | None:
 def extract_math_answer(text: str) -> str | None:
     """Extract the final MATH answer while preserving its LaTeX structure."""
     marker_matches = list(re.finditer(r"FINAL_ANSWER\s*:", text, re.IGNORECASE))
-    answer_region = text[marker_matches[-1].end() :] if marker_matches else text
+    if marker_matches:
+        # Finalizers are instructed to emit the answer before their reasoning,
+        # so preserve that answer even if the later explanation is truncated.
+        marker_line = text[marker_matches[-1].end() :].splitlines()[0].strip()
+        for command in (r"\boxed", r"\fbox"):
+            position = marker_line.find(command)
+            if position >= 0:
+                boxed = _braced_content(marker_line, position)
+                if boxed:
+                    return boxed
+        fallback = marker_line.strip("$ ").strip()
+        if fallback:
+            return fallback
+
+    answer_region = text
     positions = [
         (answer_region.rfind(command), command)
         for command in (r"\boxed", r"\fbox")
@@ -263,10 +304,6 @@ def extract_math_answer(text: str) -> str | None:
         boxed = _braced_content(answer_region, position)
         if boxed:
             return boxed
-    if marker_matches:
-        fallback = answer_region.splitlines()[0].strip()
-        fallback = fallback.strip("$ ").strip()
-        return fallback or None
     return None
 
 
@@ -303,6 +340,39 @@ def evaluate_answer(
         prediction = extract_math_answer(output)
         return prediction, math_equivalent(prediction, reference)
     raise ValueError(f"unsupported evaluator: {evaluator}")
+
+
+def build_answer_recovery_messages(
+    task: str, unfinished_output: str, evaluator: str
+) -> list[dict[str, str]]:
+    if evaluator == "math":
+        answer_format = r"FINAL_ANSWER: \boxed{answer}"
+    elif evaluator == "gsm8k":
+        answer_format = "FINAL_ANSWER: <number>"
+    else:
+        raise ValueError(f"unsupported evaluator: {evaluator}")
+    # The tail normally contains the most advanced part of a truncated
+    # derivation while keeping this repair request inexpensive.
+    reasoning_tail = unfinished_output[-8000:]
+    return [
+        {
+            "role": "system",
+            "content": (
+                "You recover the final answer from an unfinished solution. "
+                f"Return exactly one line in the form '{answer_format}'. "
+                "Do not explain, restart the solution, or omit the answer. "
+                "Infer the best answer even when the attempt is incomplete."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Problem:\n{task.strip()}\n\n"
+                f"Tail of unfinished solution:\n{reasoning_tail}\n\n"
+                "Return only the required final-answer line."
+            ),
+        },
+    ]
 
 
 def topological_order(mask: Sequence[int], adjacency: Sequence[Sequence[float]]) -> list[int]:
@@ -368,12 +438,17 @@ def build_messages(
         if evaluator == "math":
             system += (
                 "\nYou are the final answer node. Preserve exact mathematical "
-                "notation and end with exactly 'FINAL_ANSWER: \\boxed{answer}'."
+                "notation. Before any explanation, output your best answer on "
+                "the first line in exactly the form "
+                "'FINAL_ANSWER: \\boxed{answer}'. Never omit this line, even "
+                "when uncertain. Then give a concise verification."
             )
         else:
             system += (
-                "\nYou are the final answer node. End with exactly "
-                "'FINAL_ANSWER: <number>' and no unit on that line."
+                "\nYou are the final answer node. Before any explanation, "
+                "output your best answer on the first line in exactly the form "
+                "'FINAL_ANSWER: <number>' with no unit. Never omit this line, "
+                "even when uncertain. Then give a concise verification."
             )
     else:
         system += (
@@ -449,6 +524,7 @@ def run_candidate_graph(
     edge_tokens = [[0.0] * n for _ in range(n)]
     edge_times = [[0.0] * n for _ in range(n)]
     wall_started = time.perf_counter()
+    sampling_seed = graph.get("sampling_seed")
 
     for target in order:
         predecessors = [source for source in order if adjacency[source][target]]
@@ -461,7 +537,10 @@ def run_candidate_graph(
             is_finalizer=target == finalizer,
             evaluator=evaluator,
         )
-        result = backend.generate(messages)
+        if sampling_seed is None:
+            result = backend.generate(messages)
+        else:
+            result = backend.generate(messages, seed=int(sampling_seed))
         outputs[target] = result.text
         input_tokens[target] = result.input_tokens
         output_tokens[target] = result.output_tokens
@@ -474,10 +553,30 @@ def run_candidate_graph(
                     result.latency_seconds * count / result.input_tokens
                 )
 
-    wall_time = time.perf_counter() - wall_started
     prediction, is_correct = evaluate_answer(
         outputs[finalizer], reference_answer, evaluator
     )
+    recovery_result: GenerationResult | None = None
+    if prediction is None:
+        recovery_messages = build_answer_recovery_messages(
+            task, outputs[finalizer], evaluator
+        )
+        recovery_seed = (
+            None if sampling_seed is None else int(sampling_seed) + 2_000_003
+        )
+        recovery_result = backend.generate(
+            recovery_messages,
+            seed=recovery_seed,
+            max_new_tokens=128,
+        )
+        outputs[finalizer] += f"\n\n[ANSWER_RECOVERY]\n{recovery_result.text}"
+        input_tokens[finalizer] += recovery_result.input_tokens
+        output_tokens[finalizer] += recovery_result.output_tokens
+        node_times[finalizer] += recovery_result.latency_seconds
+        prediction, is_correct = evaluate_answer(
+            recovery_result.text, reference_answer, evaluator
+        )
+    wall_time = time.perf_counter() - wall_started
     accuracy = float(is_correct)
     total_input_tokens = sum(input_tokens)
     total_output_tokens = sum(output_tokens)
@@ -498,6 +597,16 @@ def run_candidate_graph(
         "total_output_tokens": total_output_tokens,
         "wall_time_seconds": wall_time,
         "execution_status": "completed",
+        "answer_recovery_attempted": recovery_result is not None,
+        "answer_recovery_finish_reason": (
+            recovery_result.finish_reason if recovery_result is not None else None
+        ),
+        "answer_recovery_input_tokens": (
+            recovery_result.input_tokens if recovery_result is not None else 0
+        ),
+        "answer_recovery_output_tokens": (
+            recovery_result.output_tokens if recovery_result is not None else 0
+        ),
     }
     if store_node_outputs:
         update["node_outputs"] = [outputs.get(index) for index in range(n)]
@@ -552,6 +661,7 @@ async def run_candidate_graph_async(
     edge_tokens = [[0.0] * n for _ in range(n)]
     edge_times = [[0.0] * n for _ in range(n)]
     wall_started = time.perf_counter()
+    sampling_seed = graph.get("sampling_seed")
 
     for target in order:
         predecessors = [source for source in order if adjacency[source][target]]
@@ -564,7 +674,10 @@ async def run_candidate_graph_async(
             is_finalizer=target == finalizer,
             evaluator=evaluator,
         )
-        result = await backend.generate(messages)
+        if sampling_seed is None:
+            result = await backend.generate(messages)
+        else:
+            result = await backend.generate(messages, seed=int(sampling_seed))
         outputs[target] = result.text
         input_tokens[target] = result.input_tokens
         output_tokens[target] = result.output_tokens
@@ -577,10 +690,30 @@ async def run_candidate_graph_async(
                     result.latency_seconds * count / result.input_tokens
                 )
 
-    wall_time = time.perf_counter() - wall_started
     prediction, is_correct = evaluate_answer(
         outputs[finalizer], reference_answer, evaluator
     )
+    recovery_result: GenerationResult | None = None
+    if prediction is None:
+        recovery_messages = build_answer_recovery_messages(
+            task, outputs[finalizer], evaluator
+        )
+        recovery_seed = (
+            None if sampling_seed is None else int(sampling_seed) + 2_000_003
+        )
+        recovery_result = await backend.generate(
+            recovery_messages,
+            seed=recovery_seed,
+            max_new_tokens=128,
+        )
+        outputs[finalizer] += f"\n\n[ANSWER_RECOVERY]\n{recovery_result.text}"
+        input_tokens[finalizer] += recovery_result.input_tokens
+        output_tokens[finalizer] += recovery_result.output_tokens
+        node_times[finalizer] += recovery_result.latency_seconds
+        prediction, is_correct = evaluate_answer(
+            recovery_result.text, reference_answer, evaluator
+        )
+    wall_time = time.perf_counter() - wall_started
     accuracy = float(is_correct)
     total_input_tokens = sum(input_tokens)
     total_output_tokens = sum(output_tokens)
@@ -601,6 +734,16 @@ async def run_candidate_graph_async(
         "total_output_tokens": total_output_tokens,
         "wall_time_seconds": wall_time,
         "execution_status": "completed",
+        "answer_recovery_attempted": recovery_result is not None,
+        "answer_recovery_finish_reason": (
+            recovery_result.finish_reason if recovery_result is not None else None
+        ),
+        "answer_recovery_input_tokens": (
+            recovery_result.input_tokens if recovery_result is not None else 0
+        ),
+        "answer_recovery_output_tokens": (
+            recovery_result.output_tokens if recovery_result is not None else 0
+        ),
     }
     if store_node_outputs:
         update["node_outputs"] = [outputs.get(index) for index in range(n)]

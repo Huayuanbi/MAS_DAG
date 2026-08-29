@@ -4,7 +4,12 @@ import argparse
 import asyncio
 import json
 from pathlib import Path
+import sys
 import traceback
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from MAS_DAG.mas_runtime import (
     TransformersChatBackend,
@@ -14,7 +19,6 @@ from MAS_DAG.mas_runtime import (
 )
 
 
-ROOT = Path(__file__).resolve().parent
 DEFAULT_INPUT = ROOT / "data" / "gsm8k" / "candidate_graphs.json"
 DEFAULT_OUTPUT = ROOT / "data" / "gsm8k" / "candidate_graphs_scored.json"
 
@@ -108,7 +112,19 @@ def resolve_nodes(record: dict, dataset_path: Path) -> tuple[list[dict], str]:
 
 def should_execute(graph: dict, retry_errors: bool) -> bool:
     status = graph.get("execution_status")
+    if status == "completed" and graph.get("prediction") is None:
+        return retry_errors
     return status != "completed" and (status != "error" or retry_errors)
+
+
+def prepare_missing_prediction_retry(graph: dict, default_seed: int) -> None:
+    """Advance stochastic seed before retrying a completed but unparsed output."""
+    if graph.get("execution_status") != "completed" or graph.get("prediction") is not None:
+        return
+    retry_count = int(graph.get("missing_prediction_retry_count", 0)) + 1
+    graph["missing_prediction_retry_count"] = retry_count
+    previous_seed = int(graph.get("sampling_seed", default_seed))
+    graph["sampling_seed"] = previous_seed + 1_000_003
 
 
 def resolve_evaluator(record: dict, requested: str) -> str:
@@ -118,9 +134,12 @@ def resolve_evaluator(record: dict, requested: str) -> str:
     return evaluator
 
 
-def print_graph_result(graph: dict, reference_answer: object) -> None:
+def print_graph_result(
+    graph: dict, reference_answer: object, graph_id: str | None = None
+) -> None:
+    prefix = f"  graph={graph_id} " if graph_id is not None else "  "
     print(
-        f"  prediction={graph['prediction']} reference={reference_answer} "
+        f"{prefix}prediction={graph['prediction']} reference={reference_answer} "
         f"accuracy={graph['accuracy']:.0f} reward={graph['reward']:.6f} "
         f"tokens={graph['total_input_tokens'] + graph['total_output_tokens']} "
         f"time={graph['wall_time_seconds']:.3f}s",
@@ -147,23 +166,22 @@ async def run_vllm(
         timeout=args.request_timeout,
     )
     semaphore = asyncio.Semaphore(args.concurrency)
-    completed_since_checkpoint = 0
-
     async def execute_one(
         query_index: int,
         graph_index: int,
         record: dict,
         nodes: list[dict],
         finalizer_id: str,
-    ) -> None:
+    ) -> int:
         graph = record["graphs"][graph_index]
+        prepare_missing_prediction_retry(graph, args.seed)
         evaluator = resolve_evaluator(record, args.evaluator)
         graph_id = graph.get("id", f"q{query_index}_g{graph_index}")
-        print(f"[{query_index + 1}/{stop}] graph={graph_id}", flush=True)
         try:
             # One permit represents one complete DAG. Different DAGs advance
             # independently, allowing vLLM to batch their ready node requests.
             async with semaphore:
+                print(f"[{query_index + 1}/{stop}] graph={graph_id}", flush=True)
                 update = await run_candidate_graph_async(
                     task=record["task"],
                     reference_answer=str(record["reference_answer"]),
@@ -178,30 +196,42 @@ async def run_vllm(
                 )
             graph.update(update)
             graph.pop("execution_error", None)
-            print_graph_result(graph, record["reference_answer"])
+            print_graph_result(graph, record["reference_answer"], graph_id)
         except Exception as exc:
             graph["execution_status"] = "error"
             graph["execution_error"] = f"{type(exc).__name__}: {exc}"
             traceback.print_exc()
+        return query_index
 
+    tasks: list[asyncio.Task[int]] = []
+    remaining_by_query: dict[int, int] = {}
     for query_index in range(args.query_start, stop):
         record = records[query_index]
         nodes, finalizer_id = resolve_nodes(record, dataset_path)
         graph_stop = len(record["graphs"])
         if args.max_graphs_per_query is not None:
             graph_stop = min(graph_stop, args.max_graphs_per_query)
-        tasks = [
-            execute_one(query_index, graph_index, record, nodes, finalizer_id)
+        query_tasks = [
+            asyncio.create_task(
+                execute_one(query_index, graph_index, record, nodes, finalizer_id)
+            )
             for graph_index in range(graph_stop)
             if should_execute(record["graphs"][graph_index], args.retry_errors)
         ]
-        if tasks:
-            await asyncio.gather(*tasks)
+        if query_tasks:
+            tasks.extend(query_tasks)
+            remaining_by_query[query_index] = len(query_tasks)
 
-        completed_since_checkpoint += 1
-        if completed_since_checkpoint >= args.checkpoint_every:
+    completed_queries = 0
+    for completed_task in asyncio.as_completed(tasks):
+        query_index = await completed_task
+        remaining_by_query[query_index] -= 1
+        if remaining_by_query[query_index] != 0:
+            continue
+        completed_queries += 1
+        if completed_queries >= args.checkpoint_every:
             atomic_write_json(args.output, records)
-            completed_since_checkpoint = 0
+            completed_queries = 0
             print(f"checkpoint={args.output}", flush=True)
 
     atomic_write_json(args.output, records)
@@ -261,6 +291,7 @@ def main() -> None:
             graph = graphs[graph_index]
             if not should_execute(graph, args.retry_errors):
                 continue
+            prepare_missing_prediction_retry(graph, args.seed)
             graph_id = graph.get("id", f"q{query_index}_g{graph_index}")
             print(f"[{query_index + 1}/{stop}] graph={graph_id}", flush=True)
             try:

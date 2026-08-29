@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import random
-from typing import Callable, Iterable, Sequence
+from typing import Callable, Iterable, Mapping, Sequence
 
 
 DEFAULT_GSM8K_ROLES = (
@@ -374,6 +374,158 @@ def generate_random_dag(
     return _build_topology("random_dag", num_nodes, active, order, edges, finalizer)
 
 
+MATH_ROLE_NAMES = (
+    "problem_analyst",
+    "strategy_planner",
+    "primary_solver",
+    "alternative_solver",
+    "symbolic_proof_verifier",
+    "finalizer",
+)
+
+
+def generate_math_role_anchors(
+    num_nodes: int,
+    finalizer: int,
+    role_indices: Mapping[str, int],
+    *,
+    fixed_order: Sequence[int],
+) -> list[SampledTopology]:
+    """Build meaningful MATH agent DAGs instead of role-agnostic shapes."""
+    missing = [role for role in MATH_ROLE_NAMES if role not in role_indices]
+    if missing:
+        raise ValueError(f"missing MATH roles: {', '.join(missing)}")
+    a = role_indices["problem_analyst"]
+    p = role_indices["strategy_planner"]
+    s = role_indices["primary_solver"]
+    alt = role_indices["alternative_solver"]
+    v = role_indices["symbolic_proof_verifier"]
+    f = role_indices["finalizer"]
+    if f != finalizer:
+        raise ValueError("the finalizer role does not match finalizer")
+
+    def build(
+        generator: str,
+        active: Sequence[int],
+        edges: Sequence[tuple[int, int]],
+    ) -> SampledTopology:
+        active_set = set(active)
+        order = tuple(node for node in fixed_order if node in active_set)
+        return _build_topology(generator, num_nodes, active, order, edges, finalizer)
+
+    return [
+        # Strongest anchor: two independent solutions, a joint verifier, and
+        # direct solver-to-finalizer edges so verification is not a bottleneck.
+        build(
+            "expert_anchor",
+            (a, p, s, alt, v, f),
+            (
+                (a, p),
+                (p, s),
+                (s, v),
+                (alt, v),
+                (s, f),
+                (alt, f),
+                (v, f),
+            ),
+        ),
+        # Lower-cost primary route with Alternative Solver removed.
+        build(
+            "primary_pipeline",
+            (a, p, s, v, f),
+            ((a, p), (p, s), (s, v), (s, f), (v, f)),
+        ),
+        # Compare two independent solvers without spending tokens on planning.
+        build(
+            "dual_solver_review",
+            (s, alt, v, f),
+            ((s, v), (alt, v), (s, f), (alt, f), (v, f)),
+        ),
+        # Test whether direct aggregation is better than an explicit verifier.
+        build(
+            "dual_solver_direct",
+            (s, alt, f),
+            ((s, f), (alt, f)),
+        ),
+        # A conventional analysis-plan-solve route with direct finalization.
+        build(
+            "planned_primary",
+            (a, p, s, f),
+            ((a, p), (p, s), (s, f)),
+        ),
+    ]
+
+
+def generate_math_random_dag(
+    num_nodes: int,
+    finalizer: int,
+    role_indices: Mapping[str, int],
+    *,
+    rng: random.Random,
+    fixed_order: Sequence[int],
+) -> SampledTopology:
+    """Sample a diverse DAG while preserving the semantics of MATH roles."""
+    missing = [role for role in MATH_ROLE_NAMES if role not in role_indices]
+    if missing:
+        raise ValueError(f"missing MATH roles: {', '.join(missing)}")
+    a = role_indices["problem_analyst"]
+    p = role_indices["strategy_planner"]
+    s = role_indices["primary_solver"]
+    alt = role_indices["alternative_solver"]
+    v = role_indices["symbolic_proof_verifier"]
+    f = role_indices["finalizer"]
+    if f != finalizer:
+        raise ValueError("the finalizer role does not match finalizer")
+
+    # finalizer_only is already an explicit baseline. Random candidates should
+    # contain at least one agent capable of producing a solution.
+    active_count = rng.choices(
+        range(2, num_nodes + 1),
+        weights=DEFAULT_ACTIVE_COUNT_WEIGHTS[1:num_nodes],
+        k=1,
+    )[0]
+    required_solver = rng.choice((s, alt))
+    optional = [node for node in (a, p, s, alt, v) if node != required_solver]
+    active = set(rng.sample(optional, active_count - 2))
+    active.update((required_solver, f))
+    order = tuple(node for node in fixed_order if node in active)
+
+    allowed_targets = {
+        a: (p, s, alt),
+        p: (s, alt),
+        s: (v, f),
+        alt: (v, f),
+        v: (f,),
+        f: (),
+    }
+    edges: set[tuple[int, int]] = set()
+    reaches_finalizer = {f}
+    for source in reversed(order[:-1]):
+        candidates = [
+            target
+            for target in allowed_targets[source]
+            if target in active and target in reaches_finalizer
+        ]
+        if not candidates:
+            # This can only happen for a planner/analyst when the randomly
+            # required solver is absent from its allowed descendants. Retry at
+            # suite level with another sampled active set.
+            raise ValueError("sampled roles do not form a semantic path")
+        edges.add((source, rng.choice(candidates)))
+        reaches_finalizer.add(source)
+
+    extra_candidates = [
+        (source, target)
+        for source in order[:-1]
+        for target in allowed_targets[source]
+        if target in active and (source, target) not in edges
+    ]
+    edges.update(edge for edge in extra_candidates if rng.random() < 0.3)
+    return _build_topology(
+        "random_dag", num_nodes, tuple(active), order, edges, finalizer
+    )
+
+
 def generate_candidate_suite(
     num_nodes: int = 6,
     finalizer: int = 5,
@@ -381,6 +533,7 @@ def generate_candidate_suite(
     random_count: int = 5,
     seed: int | None = None,
     fixed_order: Sequence[int] | None = None,
+    role_indices: Mapping[str, int] | None = None,
 ) -> list[SampledTopology]:
     """Generate 5 anchors, 2 low-cost baselines, and random connected DAGs."""
     if random_count < 0:
@@ -406,41 +559,77 @@ def generate_candidate_suite(
     if fixed_order is not None and fixed_order[-1] != finalizer:
         raise ValueError("fixed_order must place the finalizer last")
 
-    add_unique(
-        lambda: generate_chain(
-            num_nodes, finalizer, rng=anchor_rng, fixed_order=fixed_order
-        )
-    )
-    add_unique(
-        lambda: generate_star(
-            num_nodes, finalizer, rng=anchor_rng, fixed_order=fixed_order
-        )
-    )
-    add_unique(
-        lambda: generate_tree(
-            num_nodes, finalizer, rng=anchor_rng, fixed_order=fixed_order
-        )
-    )
-    add_unique(
-        lambda: generate_complete_dag(
-            num_nodes, finalizer, rng=anchor_rng, fixed_order=fixed_order
-        )
-    )
-    add_unique(
-        lambda: generate_sparse_random(
-            num_nodes, finalizer, rng=anchor_rng, fixed_order=fixed_order
-        )
-    )
-    add_unique(lambda: generate_finalizer_only(num_nodes, finalizer))
-    add_unique(lambda: generate_two_node(num_nodes, finalizer, rng=anchor_rng))
-    for _ in range(random_count):
+    if role_indices is not None:
+        if fixed_order is None:
+            raise ValueError("role-aware anchors require fixed_order")
+        for anchor in generate_math_role_anchors(
+            num_nodes,
+            finalizer,
+            role_indices,
+            fixed_order=fixed_order,
+        ):
+            add_unique(lambda anchor=anchor: anchor)
+    else:
         add_unique(
-            lambda: generate_random_dag(
-                num_nodes,
-                finalizer,
-                active_count_weights=DEFAULT_ACTIVE_COUNT_WEIGHTS[:num_nodes],
-                rng=rng,
-                fixed_order=fixed_order,
+            lambda: generate_chain(
+                num_nodes, finalizer, rng=anchor_rng, fixed_order=fixed_order
             )
         )
+        add_unique(
+            lambda: generate_star(
+                num_nodes, finalizer, rng=anchor_rng, fixed_order=fixed_order
+            )
+        )
+        add_unique(
+            lambda: generate_tree(
+                num_nodes, finalizer, rng=anchor_rng, fixed_order=fixed_order
+            )
+        )
+        add_unique(
+            lambda: generate_complete_dag(
+                num_nodes, finalizer, rng=anchor_rng, fixed_order=fixed_order
+            )
+        )
+        add_unique(
+            lambda: generate_sparse_random(
+                num_nodes, finalizer, rng=anchor_rng, fixed_order=fixed_order
+            )
+        )
+    add_unique(lambda: generate_finalizer_only(num_nodes, finalizer))
+    specialist = (
+        role_indices.get("primary_solver") if role_indices is not None else None
+    )
+    add_unique(
+        lambda: generate_two_node(
+            num_nodes, finalizer, specialist=specialist, rng=anchor_rng
+        )
+    )
+    for _ in range(random_count):
+        if role_indices is not None:
+            def semantic_random() -> SampledTopology:
+                for _ in range(200):
+                    try:
+                        return generate_math_random_dag(
+                            num_nodes,
+                            finalizer,
+                            role_indices,
+                            rng=rng,
+                            fixed_order=fixed_order,
+                        )
+                    except ValueError as exc:
+                        if str(exc) != "sampled roles do not form a semantic path":
+                            raise
+                raise RuntimeError("could not sample compatible MATH roles")
+
+            add_unique(semantic_random)
+        else:
+            add_unique(
+                lambda: generate_random_dag(
+                    num_nodes,
+                    finalizer,
+                    active_count_weights=DEFAULT_ACTIVE_COUNT_WEIGHTS[:num_nodes],
+                    rng=rng,
+                    fixed_order=fixed_order,
+                )
+            )
     return topologies
