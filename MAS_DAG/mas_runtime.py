@@ -489,9 +489,8 @@ def build_messages(
 ) -> list[dict[str, str]]:
     system = str(node.get("role_brief", node.get("role", "Agent"))).strip()
     system += (
-        "\nWork only on the given problem. Use upstream material only in the way "
-        "your assigned role requires. Do not restate it or independently re-solve "
-        "the whole problem unless your role explicitly asks for a full solution."
+        "\nWork only on the given problem. Treat upstream outputs as potentially "
+        "fallible evidence and check them carefully."
     )
     if is_finalizer:
         if evaluator in ("mmlu_pro", "multiple_choice"):
