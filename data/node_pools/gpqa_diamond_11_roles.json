@@ -1,0 +1,83 @@
+{
+  "id": "gpqa_diamond_11_roles_v1",
+  "finalizer_id": "agent_10",
+  "nodes": [
+    {
+      "id": "agent_0",
+      "role": "question_analyst",
+      "role_brief": "Identify the scientific domain, givens, hidden assumptions, and what must be distinguished. Do not select an option.",
+      "user_prompt": "Analyze the GPQA question and its options without solving it:\n{question}",
+      "max_new_tokens": 768
+    },
+    {
+      "id": "agent_1",
+      "role": "science_expert",
+      "role_brief": "Recall the most relevant scientific laws, definitions, and order-of-magnitude facts. Stay concise and do not repeat upstream text.",
+      "user_prompt": "Supply relevant scientific knowledge for:\n{question}\n\nUpstream evidence:\n{context}",
+      "max_new_tokens": 1536
+    },
+    {
+      "id": "agent_2",
+      "role": "physics_expert",
+      "role_brief": "Analyze only the physics aspects. State equations, units, limiting cases, and option eliminations that are genuinely relevant.",
+      "user_prompt": "Give a focused physics analysis of:\n{question}\n\nUpstream evidence:\n{context}",
+      "max_new_tokens": 1536
+    },
+    {
+      "id": "agent_3",
+      "role": "chemistry_expert",
+      "role_brief": "Analyze only the chemistry aspects, including mechanisms, equilibria, structure, and experimental interpretation when relevant.",
+      "user_prompt": "Give a focused chemistry analysis of:\n{question}\n\nUpstream evidence:\n{context}",
+      "max_new_tokens": 1536
+    },
+    {
+      "id": "agent_4",
+      "role": "biology_expert",
+      "role_brief": "Analyze only the biology aspects, including molecular, cellular, organismal, and experimental considerations when relevant.",
+      "user_prompt": "Give a focused biology analysis of:\n{question}\n\nUpstream evidence:\n{context}",
+      "max_new_tokens": 1536
+    },
+    {
+      "id": "agent_5",
+      "role": "primary_solver",
+      "role_brief": "Solve the multiple-choice problem carefully, compare all plausible options, and end with a proposed option letter.",
+      "user_prompt": "Solve:\n{question}\n\nUse relevant upstream evidence without restating it:\n{context}",
+      "max_new_tokens": 3072
+    },
+    {
+      "id": "agent_6",
+      "role": "alternative_solver",
+      "role_brief": "Independently solve the problem using a different route and explicitly flag uncertainty. End with a proposed option letter.",
+      "user_prompt": "Independently solve:\n{question}\n\nUse upstream evidence only as needed:\n{context}",
+      "max_new_tokens": 3072
+    },
+    {
+      "id": "agent_7",
+      "role": "solution_critic",
+      "role_brief": "Audit proposed reasoning for a specific factual, mathematical, or option-mapping error. Do not redo the whole solution unless needed to expose an error.",
+      "user_prompt": "Critique the proposed solution for:\n{question}\n\nCandidate evidence:\n{context}",
+      "max_new_tokens": 1536
+    },
+    {
+      "id": "agent_8",
+      "role": "solution_reviser",
+      "role_brief": "Repair only the defects identified by the critic, preserve valid work, and provide a corrected option with a compact justification.",
+      "user_prompt": "Revise the solution to:\n{question}\n\nSolver and critique:\n{context}",
+      "max_new_tokens": 2048
+    },
+    {
+      "id": "agent_9",
+      "role": "verifier_judge",
+      "role_brief": "Compare candidate conclusions, check decisive claims, resolve disagreement, and select the best-supported option. Do not merely vote.",
+      "user_prompt": "Judge the evidence for:\n{question}\n\nCandidate analyses:\n{context}",
+      "max_new_tokens": 1536
+    },
+    {
+      "id": "agent_10",
+      "role": "finalizer",
+      "role_brief": "Return exactly FINAL_ANSWER: X where X is one option letter A through D. Add nothing else.",
+      "user_prompt": "Finalize the answer to:\n{question}\n\nEvidence:\n{context}",
+      "max_new_tokens": 2048
+    }
+  ]
+}

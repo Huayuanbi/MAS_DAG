@@ -22,13 +22,23 @@ class GenerationResult:
 
 
 class ChatBackend(Protocol):
-    def generate(self, messages: Sequence[dict[str, str]]) -> GenerationResult: ...
+    def generate(
+        self,
+        messages: Sequence[dict[str, str]],
+        *,
+        max_new_tokens: int | None = None,
+    ) -> GenerationResult: ...
 
     def count_tokens(self, text: str) -> int: ...
 
 
 class AsyncChatBackend(Protocol):
-    async def generate(self, messages: Sequence[dict[str, str]]) -> GenerationResult: ...
+    async def generate(
+        self,
+        messages: Sequence[dict[str, str]],
+        *,
+        max_new_tokens: int | None = None,
+    ) -> GenerationResult: ...
 
     def count_tokens(self, text: str) -> int: ...
 
@@ -91,7 +101,15 @@ class TransformersChatBackend:
     def count_tokens(self, text: str) -> int:
         return len(self.tokenizer.encode(text, add_special_tokens=False))
 
-    def generate(self, messages: Sequence[dict[str, str]]) -> GenerationResult:
+    def generate(
+        self,
+        messages: Sequence[dict[str, str]],
+        *,
+        max_new_tokens: int | None = None,
+    ) -> GenerationResult:
+        token_limit = min(max_new_tokens or self.max_new_tokens, self.max_new_tokens)
+        if token_limit <= 0:
+            raise ValueError("max_new_tokens must be positive")
         template_kwargs = {
             "tokenize": True,
             "add_generation_prompt": True,
@@ -107,7 +125,7 @@ class TransformersChatBackend:
         model_inputs = {key: value.to(self.device) for key, value in model_inputs.items()}
         input_tokens = int(model_inputs["attention_mask"].sum().item())
         generation_kwargs = {
-            "max_new_tokens": self.max_new_tokens,
+            "max_new_tokens": token_limit,
             "do_sample": self.temperature > 0,
             "pad_token_id": self.tokenizer.eos_token_id,
         }
@@ -131,7 +149,7 @@ class TransformersChatBackend:
             output_tokens=int(generated_ids.numel()),
             latency_seconds=latency,
             finish_reason=(
-                "length" if int(generated_ids.numel()) >= self.max_new_tokens else "stop"
+                "length" if int(generated_ids.numel()) >= token_limit else "stop"
             ),
         )
 
@@ -180,13 +198,21 @@ class VLLMChatBackend:
     def count_tokens(self, text: str) -> int:
         return len(self.tokenizer.encode(text, add_special_tokens=False))
 
-    async def generate(self, messages: Sequence[dict[str, str]]) -> GenerationResult:
+    async def generate(
+        self,
+        messages: Sequence[dict[str, str]],
+        *,
+        max_new_tokens: int | None = None,
+    ) -> GenerationResult:
+        token_limit = min(max_new_tokens or self.max_new_tokens, self.max_new_tokens)
+        if token_limit <= 0:
+            raise ValueError("max_new_tokens must be positive")
         started = time.perf_counter()
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=list(messages),
             temperature=self.temperature,
-            max_tokens=self.max_new_tokens,
+            max_tokens=token_limit,
             seed=self.seed,
             extra_body={
                 "chat_template_kwargs": {"enable_thinking": self.enable_thinking}
@@ -256,6 +282,12 @@ def _braced_content(text: str, command_start: int) -> str | None:
 
 def extract_math_answer(text: str) -> str | None:
     """Extract the final MATH answer while preserving its LaTeX structure."""
+    stripped = text.strip()
+    # Answer-only finalizers are deliberately encouraged to return a bare AIME
+    # integer. Accept it only when it is the entire response, so an arbitrary
+    # trailing number in a derivation is never mistaken for the final answer.
+    if re.fullmatch(r"\d{1,3}", stripped):
+        return stripped
     marker_matches = list(re.finditer(r"FINAL_ANSWER\s*:", text, re.IGNORECASE))
     answer_region = text[marker_matches[-1].end() :] if marker_matches else text
     positions = [
@@ -371,7 +403,7 @@ def evaluate_answer(
     if evaluator == "math":
         prediction = extract_math_answer(output)
         return prediction, math_equivalent(prediction, reference)
-    if evaluator == "mmlu_pro":
+    if evaluator in ("mmlu_pro", "multiple_choice"):
         matches = re.findall(
             r"(?:FINAL_ANSWER\s*:\s*|answer\s+is\s*\(?)([A-J])\b",
             output, flags=re.IGNORECASE,
@@ -434,6 +466,19 @@ def predecessor_block(node: dict, output: str) -> str:
     )
 
 
+def node_token_budget(node: dict) -> int | None:
+    """Return an optional per-role completion budget from a node specification."""
+    value = node.get("max_new_tokens")
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(
+            f"max_new_tokens for node {node.get('id', '<unknown>')!r} "
+            "must be a positive integer"
+        )
+    return value
+
+
 def build_messages(
     task: str,
     node: dict,
@@ -444,11 +489,12 @@ def build_messages(
 ) -> list[dict[str, str]]:
     system = str(node.get("role_brief", node.get("role", "Agent"))).strip()
     system += (
-        "\nWork only on the given problem. Treat upstream outputs as potentially "
-        "fallible evidence and check them carefully."
+        "\nWork only on the given problem. Use upstream material only in the way "
+        "your assigned role requires. Do not restate it or independently re-solve "
+        "the whole problem unless your role explicitly asks for a full solution."
     )
     if is_finalizer:
-        if evaluator == "mmlu_pro":
+        if evaluator in ("mmlu_pro", "multiple_choice"):
             system += (
                 "\nYou are the final answer node. End with exactly "
                 "'FINAL_ANSWER: X', where X is one option letter A through J."
@@ -541,6 +587,7 @@ def run_candidate_graph(
     output_tokens = [0] * n
     node_times = [0.0] * n
     finish_reasons: list[str | None] = [None] * n
+    token_budgets: list[int | None] = [None] * n
     edge_tokens = [[0.0] * n for _ in range(n)]
     edge_times = [[0.0] * n for _ in range(n)]
     wall_started = time.perf_counter()
@@ -556,7 +603,10 @@ def run_candidate_graph(
             is_finalizer=target == finalizer,
             evaluator=evaluator,
         )
-        result = backend.generate(messages)
+        token_budgets[target] = node_token_budget(nodes[target])
+        result = backend.generate(
+            messages, max_new_tokens=token_budgets[target]
+        )
         outputs[target] = result.text
         input_tokens[target] = result.input_tokens
         output_tokens[target] = result.output_tokens
@@ -597,6 +647,7 @@ def run_candidate_graph(
         "node_output_token_cost": output_tokens,
         "node_time_cost": node_times,
         "node_finish_reason": finish_reasons,
+        "node_max_new_tokens": token_budgets,
         "total_input_tokens": total_input_tokens,
         "total_output_tokens": total_output_tokens,
         "wall_time_seconds": wall_time,
@@ -656,6 +707,7 @@ async def run_candidate_graph_async(
     output_tokens = [0] * n
     node_times = [0.0] * n
     finish_reasons: list[str | None] = [None] * n
+    token_budgets: list[int | None] = [None] * n
     edge_tokens = [[0.0] * n for _ in range(n)]
     edge_times = [[0.0] * n for _ in range(n)]
     wall_started = time.perf_counter()
@@ -671,7 +723,10 @@ async def run_candidate_graph_async(
             is_finalizer=target == finalizer,
             evaluator=evaluator,
         )
-        result = await backend.generate(messages)
+        token_budgets[target] = node_token_budget(nodes[target])
+        result = await backend.generate(
+            messages, max_new_tokens=token_budgets[target]
+        )
         outputs[target] = result.text
         input_tokens[target] = result.input_tokens
         output_tokens[target] = result.output_tokens
@@ -715,6 +770,7 @@ async def run_candidate_graph_async(
         "node_output_token_cost": output_tokens,
         "node_time_cost": node_times,
         "node_finish_reason": finish_reasons,
+        "node_max_new_tokens": token_budgets,
         "total_input_tokens": total_input_tokens,
         "total_output_tokens": total_output_tokens,
         "wall_time_seconds": wall_time,

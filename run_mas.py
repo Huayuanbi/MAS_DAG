@@ -63,7 +63,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--store-node-outputs", action="store_true")
     parser.add_argument(
         "--evaluator",
-        choices=("auto", "gsm8k", "math", "humaneval", "mmlu_pro"),
+        choices=(
+            "auto", "gsm8k", "math", "humaneval", "mmlu_pro",
+            "multiple_choice",
+        ),
         default="auto",
         help="Answer scorer; auto reads each record's evaluator and defaults to gsm8k",
     )
@@ -114,7 +117,9 @@ def should_execute(graph: dict, retry_errors: bool) -> bool:
 
 def resolve_evaluator(record: dict, requested: str) -> str:
     evaluator = record.get("evaluator", "gsm8k") if requested == "auto" else requested
-    if evaluator not in ("gsm8k", "math", "humaneval", "mmlu_pro"):
+    if evaluator not in (
+        "gsm8k", "math", "humaneval", "mmlu_pro", "multiple_choice"
+    ):
         raise ValueError(f"unsupported record evaluator: {evaluator!r}")
     return evaluator
 

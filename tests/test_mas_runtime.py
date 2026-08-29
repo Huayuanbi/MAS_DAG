@@ -5,6 +5,7 @@ from MAS_DAG.mas_runtime import (
     GenerationResult,
     build_messages,
     extract_gsm8k_answer,
+    evaluate_answer,
     evaluate_humaneval,
     extract_math_answer,
     math_equivalent,
@@ -18,7 +19,7 @@ class FakeBackend:
     def count_tokens(self, text: str) -> int:
         return len(text.split())
 
-    def generate(self, messages):
+    def generate(self, messages, *, max_new_tokens=None):
         is_finalizer = "final answer node" in messages[0]["content"]
         text = "Checked carefully. FINAL_ANSWER: 2" if is_finalizer else "The result is 2."
         return GenerationResult(
@@ -30,9 +31,9 @@ class FakeBackend:
 
 
 class FakeAsyncBackend(FakeBackend):
-    async def generate(self, messages):
+    async def generate(self, messages, *, max_new_tokens=None):
         await asyncio.sleep(0)
-        return super().generate(messages)
+        return super().generate(messages, max_new_tokens=max_new_tokens)
 
 
 class MasRuntimeTest(unittest.TestCase):
@@ -145,11 +146,15 @@ class MasRuntimeTest(unittest.TestCase):
         self.assertTrue(math_equivalent(prediction, r"\frac{1}{2}"))
         self.assertTrue(math_equivalent(r"\{1,2\}", r"\{2,1\}"))
         self.assertFalse(math_equivalent(r"\frac{1}{3}", r"\frac{1}{2}"))
+        self.assertEqual(extract_math_answer("033"), "033")
+        self.assertIsNone(extract_math_answer("work gives 33"))
 
     def test_math_graph_execution(self) -> None:
         class MathBackend(FakeBackend):
-            def generate(self, messages):
-                result = super().generate(messages)
+            def generate(self, messages, *, max_new_tokens=None):
+                result = super().generate(
+                    messages, max_new_tokens=max_new_tokens
+                )
                 if "\\boxed{answer}" in messages[0]["content"]:
                     return GenerationResult(
                         text=r"Verified. FINAL_ANSWER: \boxed{\frac{2}{4}}",
@@ -209,6 +214,70 @@ class MasRuntimeTest(unittest.TestCase):
             "No predecessor agent output is available.",
             no_predecessor_messages[1]["content"],
         )
+
+    def test_node_specific_token_budget_is_forwarded_and_recorded(self) -> None:
+        class BudgetBackend(FakeBackend):
+            def __init__(self):
+                self.budgets = []
+
+            def generate(self, messages, *, max_new_tokens=None):
+                self.budgets.append(max_new_tokens)
+                return super().generate(
+                    messages, max_new_tokens=max_new_tokens
+                )
+
+        nodes = [
+            {
+                "id": "s",
+                "role": "solver",
+                "role_brief": "Solve.",
+                "max_new_tokens": 4096,
+            },
+            {
+                "id": "f",
+                "role": "finalizer",
+                "role_brief": "Finalize.",
+                "max_new_tokens": 256,
+            },
+        ]
+        graph = {
+            "mask": [0, 0],
+            "edge_weight": [[0, 1], [0, 0]],
+        }
+        backend = BudgetBackend()
+        result = run_candidate_graph(
+            task="5 - 3?",
+            reference_answer="2",
+            nodes=nodes,
+            graph=graph,
+            finalizer_id="f",
+            backend=backend,
+        )
+        self.assertEqual(backend.budgets, [4096, 256])
+        self.assertEqual(result["node_max_new_tokens"], [4096, 256])
+
+    def test_generic_multiple_choice_evaluator(self) -> None:
+        prediction, correct = evaluate_answer(
+            "Reasoning omitted. FINAL_ANSWER: C", "C", "multiple_choice"
+        )
+        self.assertEqual(prediction, "C")
+        self.assertTrue(correct)
+
+    def test_generic_multiple_choice_finalizer_prompt_requests_a_letter(self) -> None:
+        messages = build_messages(
+            "Which option is correct? A. one B. two",
+            {
+                "id": "f",
+                "role": "finalizer",
+                "role_brief": "Finalize.",
+                "user_prompt": "Answer:\n{question}\n\n{context}",
+            },
+            ["Candidate B"],
+            is_finalizer=True,
+            evaluator="multiple_choice",
+        )
+        self.assertIn("option letter A through J", messages[0]["content"])
+        self.assertNotIn("<number>", messages[0]["content"])
 
 
 if __name__ == "__main__":

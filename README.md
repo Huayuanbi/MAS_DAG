@@ -93,6 +93,31 @@ PY
 
 ## 使用 `run_mas.py` 执行和评分候选图
 
+### GPQA Diamond
+
+GPQA Diamond 使用固定的 100/20/78 Train/Validation/Test 划分。Train 每题
+包含原有的12张 sampled graph（5 anchor、2 baseline、5 random DAG），并
+额外加入4张语义 workflow graph，因此完整训练集共1600张图：
+
+```bash
+/home/gzy/miniforge3/envs/vllm-cu124/bin/python prepare_gpqa_splits.py
+/home/gzy/miniforge3/envs/vllm-cu124/bin/python generate_gpqa_candidates.py \
+  --input data/gpqa/train_sample.jsonl \
+  --output data/gpqa/train_candidate_graphs.json
+bash run_full_gpqa.sh
+/home/gzy/miniforge3/envs/vllm-cu124/bin/python analyze_gpqa.py
+```
+
+正式运行保存全部节点输出，结果写入
+`data/gpqa/train_candidate_graphs_scored_with_outputs.json`。
+
+完整数据划分记录在 `data/gpqa/split_manifest.json`：Train 100、Validation
+20、Test 78。最初已评分的 50 题保留在 Train 中，其余 148 题使用 seed 43
+打乱后依次补充 Train 50、Validation 20 和冻结 Test 78。训练候选文件为
+`data/gpqa/train_candidate_graphs.json`，评分结果为
+`data/gpqa/train_candidate_graphs_scored_with_outputs.json`。Validation 和 Test
+当前只保存题目与划分标记，不参与候选采图或评分。
+
 [`run_mas.py`](run_mas.py) 会读取候选 DAG，根据 `mask` 和 `edge_weight`
 重新计算拓扑顺序，然后依次执行活跃 Agent。每个节点只接收图中直接前驱节点
 的输出，不会看到未连接节点的信息。

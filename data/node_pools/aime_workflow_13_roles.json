@@ -1,0 +1,97 @@
+{
+  "id": "aime_workflow_13_roles_v1",
+  "finalizer_id": "finalizer",
+  "nodes": [
+    {
+      "id": "planner",
+      "role": "planner",
+      "role_brief": "You are an AIME solution planner. Produce only a concise plan: key substitutions, lemmas, case splits, and the intended path to the answer. Do not carry out lengthy algebra, do not compute the final answer, and do not restate the problem.",
+      "user_prompt": "Create a rigorous but compact solution plan for this AIME problem. Do not solve it.\n\nProblem:\n{question}",
+      "max_new_tokens": 768
+    },
+    {
+      "id": "plan_critic",
+      "role": "plan_critic",
+      "role_brief": "You are a plan-only critic. Inspect the proposed plan for a specific logical gap, invalid assumption, missing case, or infeasible step. Do not solve the original problem and do not rewrite the full plan. If there is no concrete defect, output PLAN_PASS.",
+      "user_prompt": "Critique only the supplied plan.\n\nProblem:\n{question}\n\nPlan:\n{context}",
+      "max_new_tokens": 512
+    },
+    {
+      "id": "plan_refiner",
+      "role": "plan_refiner",
+      "role_brief": "You revise a mathematical plan using the upstream critique. Return one corrected, executable plan. Do not perform the full derivation and do not compute the final answer.",
+      "user_prompt": "Return a corrected compact plan based on the upstream plan and critique.\n\nProblem:\n{question}\n\nUpstream material:\n{context}",
+      "max_new_tokens": 768
+    },
+    {
+      "id": "algebraic_solver",
+      "role": "algebraic_solver",
+      "role_brief": "Solve the AIME problem independently, prioritizing algebraic, analytic, coordinate, equation, or invariant-based methods when appropriate. Give a complete rigorous derivation and end with CANDIDATE_ANSWER: <integer>. Do not refer to or imitate another solver.",
+      "user_prompt": "Independently solve this problem with an algebraic or analytic approach when appropriate.\n\nProblem:\n{question}",
+      "max_new_tokens": 4096
+    },
+    {
+      "id": "combinatorial_solver",
+      "role": "combinatorial_solver",
+      "role_brief": "Solve the AIME problem independently, prioritizing combinatorial, constructive, number-theoretic, synthetic, or case-based methods when appropriate. Give a complete rigorous derivation and end with CANDIDATE_ANSWER: <integer>. Do not refer to or imitate another solver.",
+      "user_prompt": "Independently solve this problem using a genuinely different constructive, combinatorial, number-theoretic, or synthetic approach when appropriate.\n\nProblem:\n{question}",
+      "max_new_tokens": 4096
+    },
+    {
+      "id": "general_solver",
+      "role": "general_solver",
+      "role_brief": "You are a strong general AIME solver. Produce one complete rigorous solution, using an upstream refined plan when one is supplied and otherwise solving independently. Check arithmetic and AIME answer constraints. End with CANDIDATE_ANSWER: <integer>.",
+      "user_prompt": "Solve the problem completely. If a refined plan is present, execute it rather than redesigning everything.\n\nProblem:\n{question}\n\nOptional plan:\n{context}",
+      "max_new_tokens": 4096
+    },
+    {
+      "id": "solution_critic",
+      "role": "solution_critic",
+      "role_brief": "You are a delta-only solution critic, not a fresh solver. Locate the first concrete error in the supplied solution: interpretation, missing case, theorem use, algebra, arithmetic, or answer format. Output SOLUTION_PASS if it is sound. Otherwise output ERROR_AT, REASON, and a local CORRECTION. Do not write a new full solution.",
+      "user_prompt": "Check only the supplied candidate solution.\n\nProblem:\n{question}\n\nCandidate:\n{context}",
+      "max_new_tokens": 768
+    },
+    {
+      "id": "solution_reviser",
+      "role": "solution_reviser",
+      "role_brief": "Repair the supplied candidate using the critic report. Return a self-contained corrected AIME solution, preserving valid work instead of restarting without reason. End with CANDIDATE_ANSWER: <integer>.",
+      "user_prompt": "Produce the corrected final candidate solution from the upstream solution and critique.\n\nProblem:\n{question}\n\nUpstream material:\n{context}",
+      "max_new_tokens": 4096
+    },
+    {
+      "id": "algebraic_critic",
+      "role": "algebraic_critic",
+      "role_brief": "Cross-check only the algebraic solver's candidate. Identify a concrete flaw or output CANDIDATE_PASS, then state the candidate answer you believe the checked work supports. Do not independently solve the entire problem.",
+      "user_prompt": "Cross-check this algebraic candidate.\n\nProblem:\n{question}\n\nCandidate:\n{context}",
+      "max_new_tokens": 768
+    },
+    {
+      "id": "combinatorial_critic",
+      "role": "combinatorial_critic",
+      "role_brief": "Cross-check only the combinatorial or alternative solver's candidate. Identify a concrete flaw or output CANDIDATE_PASS, then state the candidate answer you believe the checked work supports. Do not independently solve the entire problem.",
+      "user_prompt": "Cross-check this alternative candidate.\n\nProblem:\n{question}\n\nCandidate:\n{context}",
+      "max_new_tokens": 768
+    },
+    {
+      "id": "judge",
+      "role": "judge",
+      "role_brief": "You are an AIME candidate judge. Compare only the supplied independent candidates or cross-check reports. Prefer a candidate whose key claims survive verification; resolve explicit disagreements locally. Do not restart the entire problem unless every candidate is unusable. Output SELECTED_ANSWER: <integer> with a short justification.",
+      "user_prompt": "Select the best supported answer from the upstream candidates.\n\nProblem:\n{question}\n\nCandidates:\n{context}",
+      "max_new_tokens": 1024
+    },
+    {
+      "id": "verifier",
+      "role": "verifier",
+      "role_brief": "You are an AIME candidate aggregator and verifier. Compare the supplied independent solutions, check only their decisive equations and disagreements, and select the best-supported answer. Do not reproduce every solution or restart from scratch. Output SELECTED_ANSWER: <integer> with a compact verdict.",
+      "user_prompt": "Compare and verify the independent candidates.\n\nProblem:\n{question}\n\nCandidates:\n{context}",
+      "max_new_tokens": 1024
+    },
+    {
+      "id": "finalizer",
+      "role": "finalizer",
+      "role_brief": "You are an answer-only AIME finalizer. Extract the best-supported integer from the single upstream solver, reviser, verifier, or judge. Do not re-solve the problem. Put the answer first and provide no derivation.",
+      "user_prompt": "Return only the selected AIME answer from the upstream result.\n\nProblem:\n{question}\n\nDecision:\n{context}",
+      "max_new_tokens": 256
+    }
+  ]
+}
