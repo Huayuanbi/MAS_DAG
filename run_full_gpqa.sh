@@ -17,7 +17,7 @@ cd "$ROOT"
   --base-url "$BASE_URL" \
   --evaluator auto \
   --max-new-tokens 3072 \
-  --concurrency 8 \
+  --concurrency 32 \
   --request-timeout 900 \
   --checkpoint-every 1 \
   --store-node-outputs \

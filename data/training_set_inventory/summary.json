@@ -1,0 +1,71 @@
+{
+  "classification_version": "v1",
+  "classification_priority": [
+    "mas_help: delta > 0.5",
+    "both_high: p_single >= 0.6 and p_best_mas >= 0.6",
+    "both_low_nonzero: p_single <= 0.4 and p_best_mas <= 0.4 and not both zero",
+    "other: all remaining complete questions"
+  ],
+  "datasets": [
+    {
+      "dataset": "gpqa",
+      "source_file": "data/gpqa/GPQA-train-mean5.json",
+      "questions": 100,
+      "best_mas_generator": "parallel_solvers_verify",
+      "candidate_scope": "16 candidate graphs all have Mean-5 labels",
+      "bucket_counts": {
+        "mas_help": 8,
+        "both_high": 36,
+        "both_low_nonzero": 19,
+        "other": 37
+      },
+      "inventory_csv": "data/training_set_inventory/gpqa/questions.csv",
+      "id_lists": {
+        "mas_help": "data/training_set_inventory/gpqa/mas_help.txt",
+        "both_high": "data/training_set_inventory/gpqa/both_high.txt",
+        "both_low_nonzero": "data/training_set_inventory/gpqa/both_low_nonzero.txt",
+        "other": "data/training_set_inventory/gpqa/other.txt"
+      }
+    },
+    {
+      "dataset": "aime",
+      "source_file": "data/aime/single_best_screening_run{1..5}.json",
+      "questions": 20,
+      "best_mas_generator": "complete_dag",
+      "candidate_scope": "only SingleAgent and fixed BestMAS have Mean-5 labels",
+      "bucket_counts": {
+        "mas_help": 1,
+        "both_high": 4,
+        "both_low_nonzero": 1,
+        "other": 14
+      },
+      "inventory_csv": "data/training_set_inventory/aime/questions.csv",
+      "id_lists": {
+        "mas_help": "data/training_set_inventory/aime/mas_help.txt",
+        "both_high": "data/training_set_inventory/aime/both_high.txt",
+        "both_low_nonzero": "data/training_set_inventory/aime/both_low_nonzero.txt",
+        "other": "data/training_set_inventory/aime/other.txt"
+      }
+    },
+    {
+      "dataset": "mmlu_pro",
+      "source_file": "data/mmlu_pro/train70_single_best_mean5_clean.json",
+      "questions": 8300,
+      "best_mas_generator": "star",
+      "candidate_scope": "only SingleAgent and fixed BestMAS have Mean-5 labels",
+      "bucket_counts": {
+        "mas_help": 202,
+        "both_high": 5140,
+        "both_low_nonzero": 1040,
+        "other": 1918
+      },
+      "inventory_csv": "data/training_set_inventory/mmlu_pro/questions.csv",
+      "id_lists": {
+        "mas_help": "data/training_set_inventory/mmlu_pro/mas_help.txt",
+        "both_high": "data/training_set_inventory/mmlu_pro/both_high.txt",
+        "both_low_nonzero": "data/training_set_inventory/mmlu_pro/both_low_nonzero.txt",
+        "other": "data/training_set_inventory/mmlu_pro/other.txt"
+      }
+    }
+  ]
+}
