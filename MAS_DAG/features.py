@@ -89,6 +89,7 @@ class SentenceTransformerFeatureBuilder:
                 f"{model_name!r} produces {self.embedding_dim}"
             )
         self._role_cache: dict[str, torch.Tensor] = {}
+        self._query_cache: dict[str, torch.Tensor] = {}
 
     def _encode(self, texts: list[str]) -> torch.Tensor:
         embeddings = self.encoder.encode(
@@ -119,5 +120,7 @@ class SentenceTransformerFeatureBuilder:
         device: torch.device | str = "cpu",
     ) -> torch.Tensor:
         role = self._role_embeddings(nodes)
-        query = self._encode([task]).repeat(len(nodes), 1)
+        if task not in self._query_cache:
+            self._query_cache[task] = self._encode([task])[0]
+        query = self._query_cache[task].unsqueeze(0).repeat(len(nodes), 1)
         return torch.cat((role, query), dim=1).to(device)

@@ -48,6 +48,7 @@ def parse_args() -> argparse.Namespace:
         default="auto",
     )
     parser.add_argument("--max-new-tokens", type=int, default=2048)
+    parser.add_argument("--max-context-tokens", type=int, default=8192)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--enable-thinking", action="store_true")
     parser.add_argument("--seed", type=int, default=42)
@@ -151,6 +152,7 @@ async def run_vllm(
         enable_thinking=args.enable_thinking,
         seed=args.seed,
         timeout=args.request_timeout,
+        max_context_tokens=args.max_context_tokens,
     )
     semaphore = asyncio.Semaphore(args.concurrency)
     completed_since_checkpoint = 0

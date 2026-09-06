@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import itertools
 import json
 import math
+import random
 from pathlib import Path
 
 import torch
@@ -226,9 +227,13 @@ class PairwiseRewardDataset(Dataset[RewardPair]):
         self,
         dataset: AGPJsonDataset,
         min_reward_gap: float = 0.0,
+        max_pairs_per_group: int | None = None,
+        seed: int = 7,
     ) -> None:
         if min_reward_gap < 0:
             raise ValueError("min_reward_gap must be non-negative")
+        if max_pairs_per_group is not None and max_pairs_per_group <= 0:
+            raise ValueError("max_pairs_per_group must be positive or None")
 
         groups: dict[object, list[TopologyExample]] = {}
         for example in dataset.examples:
@@ -241,16 +246,42 @@ class PairwiseRewardDataset(Dataset[RewardPair]):
                 groups.setdefault(key, []).append(example)
 
         pairs: list[RewardPair] = []
-        for candidates in groups.values():
+        for group_index, candidates in enumerate(groups.values()):
+            group_pairs: list[RewardPair] = []
             for left, right in itertools.combinations(candidates, 2):
                 assert left.reward is not None and right.reward is not None
                 gap = abs(left.reward - right.reward)
-                if gap <= min_reward_gap:
+                if gap <= 1e-8 or gap + 1e-8 < min_reward_gap:
                     continue
                 preferred, rejected = (
                     (left, right) if left.reward > right.reward else (right, left)
                 )
-                pairs.append(RewardPair(preferred=preferred, rejected=rejected))
+                group_pairs.append(RewardPair(preferred=preferred, rejected=rejected))
+            if max_pairs_per_group is not None and len(group_pairs) > max_pairs_per_group:
+                rng = random.Random(seed + group_index)
+                buckets = ([], [], [])
+                for pair in group_pairs:
+                    bucket = 0 if pair.reward_gap <= 0.2 + 1e-8 else 1 if pair.reward_gap <= 0.4 + 1e-8 else 2
+                    buckets[bucket].append(pair)
+                for bucket in buckets:
+                    rng.shuffle(bucket)
+                quotas = (
+                    max_pairs_per_group // 4,
+                    max_pairs_per_group // 4,
+                    max_pairs_per_group - 2 * (max_pairs_per_group // 4),
+                )
+                selected = [pair for bucket, quota in zip(buckets, quotas) for pair in bucket[:quota]]
+                if len(selected) < max_pairs_per_group:
+                    selected_ids = {id(pair) for pair in selected}
+                    remaining = [
+                        pair
+                        for bucket in reversed(buckets)
+                        for pair in bucket
+                        if id(pair) not in selected_ids
+                    ]
+                    selected.extend(remaining[: max_pairs_per_group - len(selected)])
+                group_pairs = selected
+            pairs.extend(group_pairs)
         self.pairs = pairs
 
     def __len__(self) -> int:

@@ -1,8 +1,19 @@
-# /data/*
+/data/*
+!/data/README.md
+!/data/example.json
+!/data/example.annotated.jsonc
+!/data/node_pools/
+/data/node_pools/*
+!/data/node_pools/mmlu_pro_6_roles.json
+!/data/training_set_inventory/
+/data/training_set_inventory/*
+!/data/training_set_inventory/mmlu_pro_balanced_difficulty_train_seed42/
+!/data/training_set_inventory/mmlu_pro_balanced_difficulty_train_seed42/**
+/data/mmlu_pro_balanced_660/
+/logs/
+/checkpoints/
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .mypy_cache/
-!/data/README.md
-!/data/example.json
-!/data/example.annotated.jsonc
+docs/

@@ -1,0 +1,26 @@
+{
+  "name": "mmlu_pro_balanced_difficulty_train_seed42",
+  "source": "data/mmlu_pro/train70_single_best_mean5_clean.json",
+  "eligible_split": "data/mmlu_pro/router_splits_seed42/train.json",
+  "selection_seed": 42,
+  "selection_method": "stable SHA-256 rank within difficulty bucket",
+  "classes": [
+    "easy",
+    "medium",
+    "collaboration_required",
+    "hard_unsolved"
+  ],
+  "per_class": 165,
+  "questions": 660,
+  "counts": {
+    "easy": 165,
+    "medium": 165,
+    "collaboration_required": 165,
+    "hard_unsolved": 165
+  },
+  "contains_only_existing_train_questions": true,
+  "current_graph_labels": [
+    "finalizer_only",
+    "star"
+  ]
+}

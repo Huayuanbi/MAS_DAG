@@ -169,6 +169,7 @@ class VLLMChatBackend:
         enable_thinking: bool = False,
         seed: int = 42,
         timeout: float = 600.0,
+        max_context_tokens: int = 8192,
     ) -> None:
         import httpx
         from openai import AsyncOpenAI
@@ -178,6 +179,8 @@ class VLLMChatBackend:
             raise ValueError("max_new_tokens must be positive")
         if temperature < 0:
             raise ValueError("temperature must be non-negative")
+        if max_context_tokens <= 0:
+            raise ValueError("max_context_tokens must be positive")
         self.client = AsyncOpenAI(
             base_url=base_url.rstrip("/"),
             api_key=api_key,
@@ -194,6 +197,7 @@ class VLLMChatBackend:
         self.temperature = temperature
         self.enable_thinking = enable_thinking
         self.seed = seed
+        self.max_context_tokens = max_context_tokens
 
     def count_tokens(self, text: str) -> int:
         return len(self.tokenizer.encode(text, add_special_tokens=False))
@@ -207,6 +211,25 @@ class VLLMChatBackend:
         token_limit = min(max_new_tokens or self.max_new_tokens, self.max_new_tokens)
         if token_limit <= 0:
             raise ValueError("max_new_tokens must be positive")
+        prompt_tokens = len(
+            self.tokenizer.apply_chat_template(
+                list(messages),
+                tokenize=True,
+                add_generation_prompt=True,
+                enable_thinking=self.enable_thinking,
+            )
+        )
+        # vLLM rejects a request before generation when prompt + max_tokens
+        # exceeds the served context window. Preserve the configured cap for
+        # normal requests and shrink only the completion allowance for long
+        # prompts. Keep a small margin for template/tokenizer accounting.
+        available_tokens = self.max_context_tokens - prompt_tokens - 8
+        if available_tokens <= 0:
+            raise ValueError(
+                f"prompt uses {prompt_tokens} tokens, exceeding the "
+                f"{self.max_context_tokens}-token context window"
+            )
+        token_limit = min(token_limit, available_tokens)
         started = time.perf_counter()
         response = await self.client.chat.completions.create(
             model=self.model,

@@ -57,12 +57,18 @@ def pairwise_reward_loss(
     rejected: TopologyExample,
     temperature: float = 1.0,
     preferred_fit_weight: float = 0.2,
+    reward_gap_scale: float = 0.2,
+    reward_gap_power: float = 0.0,
 ) -> PairwiseTopologyLoss:
     """Bradley-Terry ranking loss plus a small anchor to the preferred graph."""
     if temperature <= 0:
         raise ValueError("temperature must be positive")
     if preferred_fit_weight < 0:
         raise ValueError("preferred_fit_weight must be non-negative")
+    if reward_gap_scale <= 0:
+        raise ValueError("reward_gap_scale must be positive")
+    if reward_gap_power < 0:
+        raise ValueError("reward_gap_power must be non-negative")
     if preferred.reward is None or rejected.reward is None:
         raise ValueError("pairwise reward loss requires two rewards")
     if preferred.reward <= rejected.reward:
@@ -72,14 +78,17 @@ def pairwise_reward_loss(
 
     preferred_score = graph_log_likelihood_score(output, preferred)
     rejected_score = graph_log_likelihood_score(output, rejected)
-    ranking = F.softplus((rejected_score - preferred_score) / temperature)
+    reward_gap = output.node_prob.new_tensor(preferred.reward - rejected.reward)
+    gap_weight = (reward_gap / reward_gap_scale).pow(reward_gap_power)
+    ranking = gap_weight.detach() * F.softplus(
+        (rejected_score - preferred_score) / temperature
+    )
     preferred_fit = agp_stage2_loss(
         output,
         preferred.prune_mask.to(output.node_prob.device),
         preferred.edge_weight.to(output.edge_prob.device),
     )
     total = ranking + preferred_fit_weight * preferred_fit.total
-    reward_gap = output.node_prob.new_tensor(preferred.reward - rejected.reward)
     return PairwiseTopologyLoss(
         total=total,
         ranking=ranking,
