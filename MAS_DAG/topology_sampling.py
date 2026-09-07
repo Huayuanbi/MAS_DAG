@@ -344,6 +344,8 @@ def generate_random_dag(
     extra_edge_probability: float | None = None,
     rng: random.Random | None = None,
     fixed_order: Sequence[int] | None = None,
+    allowed_adjacency: Sequence[Sequence[int]] | None = None,
+    required_predecessors: dict[int, Sequence[int]] | None = None,
 ) -> SampledTopology:
     rng = _get_rng(rng)
     if active_count is None:
@@ -360,17 +362,75 @@ def generate_random_dag(
     if not 1 <= active_count <= num_nodes:
         raise ValueError("active_count must be between 1 and num_nodes")
 
+    if allowed_adjacency is not None:
+        if len(allowed_adjacency) != num_nodes or any(
+            len(row) != num_nodes for row in allowed_adjacency
+        ):
+            raise ValueError("allowed_adjacency must have shape [num_nodes, num_nodes]")
+        if any(value not in (0, 1) for row in allowed_adjacency for value in row):
+            raise ValueError("allowed_adjacency values must be 0 or 1")
+    requirements = required_predecessors or {}
+
     non_finalizers = [node for node in range(num_nodes) if node != finalizer]
-    selected = rng.sample(non_finalizers, active_count - 1)
-    active = tuple(selected + [finalizer])
-    order = _node_order(active, finalizer, rng, fixed_order)
-    edges = _backbone_edges(order, rng)
+    for _ in range(500):
+        selected = rng.sample(non_finalizers, active_count - 1)
+        active = tuple(selected + [finalizer])
+        order = _node_order(active, finalizer, rng, fixed_order)
+        active_set = set(active)
+        if any(
+            target in active_set
+            and not any(source in active_set for source in sources)
+            for target, sources in requirements.items()
+        ):
+            continue
+        if allowed_adjacency is None:
+            edges = _backbone_edges(order, rng)
+            break
+        connected = {finalizer}
+        edges: set[tuple[int, int]] = set()
+        feasible = True
+        for source in reversed(order[:-1]):
+            targets = [
+                target for target in connected if allowed_adjacency[source][target]
+            ]
+            if not targets:
+                feasible = False
+                break
+            edges.add((source, rng.choice(targets)))
+            connected.add(source)
+        if not feasible:
+            continue
+        for target, sources in requirements.items():
+            if target not in active_set:
+                continue
+            candidates = [
+                source
+                for source in sources
+                if source in active_set and allowed_adjacency[source][target]
+            ]
+            if not candidates:
+                feasible = False
+                break
+            edges.add((rng.choice(candidates), target))
+        if feasible:
+            break
+    else:
+        raise RuntimeError("could not sample a role-compatible connected active set")
     probability = (
         rng.choice((0.1, 0.3, 0.5))
         if extra_edge_probability is None
         else extra_edge_probability
     )
-    _add_random_forward_edges(order, edges, probability, rng)
+    if allowed_adjacency is None:
+        _add_random_forward_edges(order, edges, probability, rng)
+    else:
+        candidates = [
+            (source, target)
+            for index, source in enumerate(order)
+            for target in order[index + 1 :]
+            if allowed_adjacency[source][target] and (source, target) not in edges
+        ]
+        edges.update(edge for edge in candidates if rng.random() < probability)
     return _build_topology("random_dag", num_nodes, active, order, edges, finalizer)
 
 

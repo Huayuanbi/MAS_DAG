@@ -51,6 +51,21 @@ def workflow_topologies() -> list[SampledTopology]:
             (2, 3, 4, 9, 10),
             ((2, 9), (3, 9), (4, 9), (9, 10)),
         ),
+        make_topology(
+            "analyze_recall_solve_verify",
+            (0, 1, 5, 9, 10),
+            ((0, 1), (0, 5), (1, 5), (5, 9), (9, 10)),
+        ),
+        make_topology(
+            "analyze_parallel_solvers_judge",
+            (0, 5, 6, 9, 10),
+            ((0, 5), (0, 6), (5, 9), (6, 9), (9, 10)),
+        ),
+        make_topology(
+            "expert_solve_critique_revise",
+            (1, 5, 7, 8, 10),
+            ((1, 5), (5, 7), (5, 8), (7, 8), (8, 10)),
+        ),
     ]
 
 
@@ -73,7 +88,7 @@ def expand_core_topology(topology: SampledTopology) -> SampledTopology:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate 12 sampled plus four workflow GPQA graphs.")
+    parser = argparse.ArgumentParser(description="Generate 12 sampled plus seven workflow GPQA graphs.")
     parser.add_argument("--input", type=Path, default=Path("data/gpqa/sample.jsonl"))
     parser.add_argument("--output", type=Path, default=Path("data/gpqa/candidate_graphs.json"))
     parser.add_argument("--node-pool", type=Path, default=Path("data/node_pools/gpqa_diamond_11_roles.json"))

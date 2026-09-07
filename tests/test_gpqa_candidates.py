@@ -14,10 +14,11 @@ class GPQACandidateTests(unittest.TestCase):
             validate_topology(topology, 10)
             self.assertTrue(set(topology.active_nodes).issubset(CORE_NODES))
 
-    def test_four_workflow_additions_are_valid_and_unique(self) -> None:
+    def test_seven_workflow_additions_are_valid_unique_and_include_best(self) -> None:
         workflows = workflow_topologies()
-        self.assertEqual(len(workflows), 4)
-        self.assertEqual(len({item.signature for item in workflows}), 4)
+        self.assertEqual(len(workflows), 7)
+        self.assertEqual(len({item.signature for item in workflows}), 7)
+        self.assertIn("parallel_solvers_verify", [item.generator for item in workflows])
         for topology in workflows:
             validate_topology(topology, 10)
 

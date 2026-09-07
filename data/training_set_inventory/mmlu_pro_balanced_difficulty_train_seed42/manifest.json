@@ -10,13 +10,13 @@
     "collaboration_required",
     "hard_unsolved"
   ],
-  "per_class": 165,
-  "questions": 660,
+  "per_class": 470,
+  "questions": 1880,
   "counts": {
-    "easy": 165,
-    "medium": 165,
-    "collaboration_required": 165,
-    "hard_unsolved": 165
+    "easy": 470,
+    "medium": 470,
+    "collaboration_required": 470,
+    "hard_unsolved": 470
   },
   "contains_only_existing_train_questions": true,
   "current_graph_labels": [

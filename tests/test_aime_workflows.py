@@ -5,7 +5,7 @@ from generate_aime_workflow_candidates import build_workflow_topologies
 
 
 class AimeWorkflowTopologyTest(unittest.TestCase):
-    def test_four_workflow_families_are_valid_and_unique(self) -> None:
+    def test_seven_workflow_families_are_valid_unique_and_include_best(self) -> None:
         topologies = build_workflow_topologies()
         self.assertEqual(
             [item.generator for item in topologies],
@@ -14,11 +14,19 @@ class AimeWorkflowTopologyTest(unittest.TestCase):
                 "parallel_solvers_verify",
                 "solve_critique_revise",
                 "parallel_solve_cross_check",
+                "complete_dag",
+                "plan_critique_refine_solve_critique_revise",
+                "parallel_solvers_dual_adjudication",
             ],
         )
-        self.assertEqual(len({item.signature for item in topologies}), 4)
+        self.assertEqual(len({item.signature for item in topologies}), 7)
         for topology in topologies:
             validate_topology(topology, finalizer=12)
+
+        complete = next(item for item in topologies if item.generator == "complete_dag")
+        active = complete.topological_order
+        expected_edges = len(active) * (len(active) - 1) // 2
+        self.assertEqual(complete.num_edges, expected_edges)
 
     def test_independent_solvers_do_not_see_each_other(self) -> None:
         parallel = build_workflow_topologies()[1]

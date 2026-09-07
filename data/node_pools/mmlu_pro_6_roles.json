@@ -4,4 +4,12 @@
 {"id":"agent_2","role":"reasoner","role_brief":"Solve the problem and compare every plausible option.","user_prompt":"Reason through:\n{question}\n\nEvidence:\n{context}"},
 {"id":"agent_3","role":"alternative_solver","role_brief":"Independently solve and challenge assumptions.","user_prompt":"Independently check:\n{question}\n\nEvidence:\n{context}"},
 {"id":"agent_4","role":"critic","role_brief":"Check reasoning and eliminate incorrect options.","user_prompt":"Critique answers for:\n{question}\n\nEvidence:\n{context}"},
-{"id":"agent_5","role":"finalizer","role_brief":"Select the single correct option letter from A through J.","user_prompt":"Return the final option for:\n{question}\n\nEvidence:\n{context}"}]}
+{"id":"agent_5","role":"finalizer","role_brief":"Select the single correct option letter from A through J.","user_prompt":"Return the final option for:\n{question}\n\nEvidence:\n{context}"}],
+"allowed_edge":[
+[0,1,1,1,1,0],
+[0,0,1,1,1,0],
+[0,0,0,0,1,1],
+[0,0,0,0,1,1],
+[0,0,0,0,0,1],
+[0,0,0,0,0,0]],
+"required_predecessors":{"agent_4":["agent_2","agent_3"]}}

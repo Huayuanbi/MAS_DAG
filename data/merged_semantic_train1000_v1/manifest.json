@@ -1,0 +1,50 @@
+{
+  "name": "merged_semantic_train1000_v1",
+  "selection_seed": 42,
+  "questions": 1000,
+  "graphs_per_question": 12,
+  "total_graphs": 12000,
+  "shards": 4,
+  "questions_per_shard": 250,
+  "dataset_counts": {
+    "aime": 20,
+    "gpqa": 100,
+    "mmlu_pro": 880
+  },
+  "difficulty_counts": {
+    "collaboration_required": 500,
+    "easy": 300,
+    "hard_unsolved": 113,
+    "medium": 58,
+    "other": 29
+  },
+  "dataset_difficulty_counts": {
+    "mmlu_pro": {
+      "collaboration_required": 483,
+      "easy": 270,
+      "medium": 39,
+      "hard_unsolved": 68,
+      "other": 20
+    },
+    "gpqa": {
+      "collaboration_required": 15,
+      "easy": 30,
+      "medium": 16,
+      "hard_unsolved": 31,
+      "other": 8
+    },
+    "aime": {
+      "collaboration_required": 2,
+      "easy": 0,
+      "medium": 3,
+      "hard_unsolved": 14,
+      "other": 1
+    }
+  },
+  "topology_policy": "7 manual plus 5 role-constrained random DAGs",
+  "source_files": {
+    "mmlu_pro": "data/mmlu_pro/train70_single_best_mean5_clean.json",
+    "gpqa": "data/gpqa/GPQA-train-mean5.json",
+    "aime": "data/aime/single_best_screening_run{1..5}.json"
+  }
+}

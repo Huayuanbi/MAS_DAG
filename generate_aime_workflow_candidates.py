@@ -52,7 +52,13 @@ def make_topology(
 
 
 def build_workflow_topologies(num_nodes: int = 13, finalizer: int = 12) -> list[SampledTopology]:
-    """Four AIME mother graphs with intentional, role-valid information flow."""
+    """Seven AIME mother graphs with intentional, role-valid information flow."""
+    core = (0, 2, 3, 4, 11, 12)
+    complete_core_edges = tuple(
+        (source, target)
+        for index, source in enumerate(core)
+        for target in core[index + 1 :]
+    )
     return [
         make_topology(
             "plan_critique_refine_solve",
@@ -85,6 +91,30 @@ def build_workflow_topologies(num_nodes: int = 13, finalizer: int = 12) -> list[
             active=(3, 4, 8, 9, 10, 12),
             edges=((3, 8), (4, 9), (8, 10), (9, 10), (10, 12)),
             order=(3, 4, 8, 9, 10, 12),
+        ),
+        make_topology(
+            "complete_dag",
+            num_nodes=num_nodes,
+            finalizer=finalizer,
+            active=core,
+            edges=complete_core_edges,
+            order=core,
+        ),
+        make_topology(
+            "plan_critique_refine_solve_critique_revise",
+            num_nodes=num_nodes,
+            finalizer=finalizer,
+            active=(0, 1, 2, 5, 6, 7, 12),
+            edges=((0, 1), (0, 2), (1, 2), (2, 5), (5, 6), (5, 7), (6, 7), (7, 12)),
+            order=(0, 1, 2, 5, 6, 7, 12),
+        ),
+        make_topology(
+            "parallel_solvers_dual_adjudication",
+            num_nodes=num_nodes,
+            finalizer=finalizer,
+            active=(3, 4, 5, 10, 11, 12),
+            edges=((3, 10), (4, 10), (5, 10), (3, 11), (4, 11), (5, 11), (10, 12), (11, 12)),
+            order=(3, 4, 5, 10, 11, 12),
         ),
     ]
 
