@@ -1,3 +1,10 @@
+## 当前实验入口
+
+本分支当前的 1000 题 × 12 图 × 5 轮训练数据实验统一记录在
+[`experiments/training_dataset_v1_gzy/README.md`](experiments/training_dataset_v1_gzy/README.md)。
+新服务器部署、数据校验、单轮运行和多轮一键启动均以该文档为准；根目录同名
+脚本仅作为兼容入口保留。
+
 ## 生成候选图
 
 [`generate_candidates.py`](generate_candidates.py) 是新版通用入口。它根据
