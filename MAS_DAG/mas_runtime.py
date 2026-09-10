@@ -5,6 +5,7 @@ from decimal import Decimal, InvalidOperation
 import asyncio
 from pathlib import Path
 import re
+import string
 import subprocess
 import sys
 import tempfile
@@ -222,8 +223,9 @@ class VLLMChatBackend:
         # vLLM rejects a request before generation when prompt + max_tokens
         # exceeds the served context window. Preserve the configured cap for
         # normal requests and shrink only the completion allowance for long
-        # prompts. Keep a small margin for template/tokenizer accounting.
-        available_tokens = self.max_context_tokens - prompt_tokens - 8
+        # prompts. Keep a conservative margin because served chat templates can
+        # account for tool-turn separators slightly differently from the local tokenizer.
+        available_tokens = self.max_context_tokens - prompt_tokens - 256
         if available_tokens <= 0:
             raise ValueError(
                 f"prompt uses {prompt_tokens} tokens, exceeding the "
@@ -433,6 +435,9 @@ def evaluate_answer(
         )
         prediction = matches[-1].upper() if matches else None
         return prediction, prediction == reference.strip().upper()
+    if evaluator == "gaia":
+        prediction = extract_gaia_answer(output)
+        return prediction, gaia_exact_match(prediction, reference)
     if evaluator == "humaneval":
         if evaluation_metadata is None:
             raise ValueError("HumanEval requires evaluation metadata")
@@ -441,6 +446,60 @@ def evaluate_answer(
         )
         return prediction, passed
     raise ValueError(f"unsupported evaluator: {evaluator}")
+
+
+def extract_gaia_answer(text: str) -> str | None:
+    """Extract an answer-only value while accepting MAS_DAG's finalizer marker."""
+    matches = re.findall(r"FINAL_ANSWER\s*:\s*([^\n]+)", text, re.IGNORECASE)
+    candidate = matches[-1].strip() if matches else text.strip()
+    return candidate or None
+
+
+def _gaia_normalize_number(value: str) -> float:
+    for char in ("$", "%", ","):
+        value = value.replace(char, "")
+    try:
+        return float(value)
+    except ValueError:
+        return float("inf")
+
+
+def _gaia_normalize_string(value: str, *, remove_punct: bool = True) -> str:
+    normalized = re.sub(r"\s", "", value).lower()
+    if remove_punct:
+        normalized = normalized.translate(str.maketrans("", "", string.punctuation))
+    return normalized
+
+
+def gaia_exact_match(prediction: str | None, reference: str) -> bool:
+    """Official GAIA-style numeric, list, and normalized string comparison."""
+    if prediction is None:
+        return False
+
+    def is_float(value: str) -> bool:
+        try:
+            float(value)
+            return True
+        except ValueError:
+            return False
+
+    if is_float(reference):
+        return _gaia_normalize_number(prediction) == float(reference)
+    if any(char in reference for char in (",", ";")):
+        expected = re.split(r"[,;]", reference)
+        actual = re.split(r"[,;]", prediction)
+        if len(expected) != len(actual):
+            return False
+        for actual_item, expected_item in zip(actual, expected):
+            if is_float(expected_item):
+                if _gaia_normalize_number(actual_item) != float(expected_item):
+                    return False
+            elif _gaia_normalize_string(
+                actual_item, remove_punct=False
+            ) != _gaia_normalize_string(expected_item, remove_punct=False):
+                return False
+        return True
+    return _gaia_normalize_string(prediction) == _gaia_normalize_string(reference)
 
 
 def topological_order(mask: Sequence[int], adjacency: Sequence[Sequence[float]]) -> list[int]:
@@ -526,6 +585,12 @@ def build_messages(
                 "\nYou are the final answer node. Return only a complete executable "
                 "Python function including its def line. Do not include tests or prose."
             )
+        elif evaluator == "gaia":
+            system += (
+                "\nYou are the final answer node. End with exactly "
+                "'FINAL_ANSWER: <answer>'. The answer must be a short phrase, number, "
+                "or comma-separated list with no explanation or units unless requested."
+            )
         elif evaluator == "math":
             system += (
                 "\nYou are the final answer node. Preserve exact mathematical "
@@ -576,6 +641,9 @@ def run_candidate_graph(
     evaluator: str = "gsm8k",
     evaluation_metadata: dict | None = None,
     evaluation_timeout: float = 5.0,
+    enable_tools: bool = False,
+    tool_max_steps: int = 8,
+    tool_workspace_root: str | Path | None = None,
 ) -> dict:
     """Execute one candidate DAG and return fields to merge into its JSON record."""
     mask = graph["mask"]
@@ -610,9 +678,15 @@ def run_candidate_graph(
     node_times = [0.0] * n
     finish_reasons: list[str | None] = [None] * n
     token_budgets: list[int | None] = [None] * n
+    node_tool_traces: list[list[dict]] = [[] for _ in range(n)]
     edge_tokens = [[0.0] * n for _ in range(n)]
     edge_times = [[0.0] * n for _ in range(n)]
     wall_started = time.perf_counter()
+    workspace = None
+    if enable_tools:
+        from .tool_runtime import EpisodeWorkspace
+
+        workspace = EpisodeWorkspace(evaluation_metadata, tool_workspace_root)
 
     for target in order:
         predecessors = [source for source in order if adjacency[source][target]]
@@ -626,9 +700,36 @@ def run_candidate_graph(
             evaluator=evaluator,
         )
         token_budgets[target] = node_token_budget(nodes[target])
-        result = backend.generate(
-            messages, max_new_tokens=token_budgets[target]
-        )
+        tools = node_tools = nodes[target].get("tools", [])
+        if tools and not isinstance(tools, list):
+            raise ValueError(f"tools for node {nodes[target].get('id')!r} must be a list")
+        if enable_tools and node_tools:
+            from .tool_runtime import run_tool_loop_sync
+
+            assert workspace is not None
+            tool_result = run_tool_loop_sync(
+                backend,
+                messages,
+                [str(name) for name in node_tools],
+                workspace,
+                max_steps=min(
+                    tool_max_steps,
+                    int(nodes[target].get("max_tool_steps", tool_max_steps)),
+                ),
+                max_new_tokens=token_budgets[target],
+            )
+            result = GenerationResult(
+                text=tool_result.text,
+                input_tokens=tool_result.input_tokens,
+                output_tokens=tool_result.output_tokens,
+                latency_seconds=tool_result.latency_seconds,
+                finish_reason=tool_result.finish_reason,
+            )
+            node_tool_traces[target] = list(tool_result.tool_trace)
+        else:
+            result = backend.generate(
+                messages, max_new_tokens=token_budgets[target]
+            )
         outputs[target] = result.text
         input_tokens[target] = result.input_tokens
         output_tokens[target] = result.output_tokens
@@ -670,6 +771,8 @@ def run_candidate_graph(
         "node_time_cost": node_times,
         "node_finish_reason": finish_reasons,
         "node_max_new_tokens": token_budgets,
+        "node_tool_traces": node_tool_traces,
+        "total_tool_calls": sum(len(trace) for trace in node_tool_traces),
         "total_input_tokens": total_input_tokens,
         "total_output_tokens": total_output_tokens,
         "wall_time_seconds": wall_time,
@@ -679,6 +782,8 @@ def run_candidate_graph(
         update["evaluation_error"] = evaluation_error
     if store_node_outputs:
         update["node_outputs"] = [outputs.get(index) for index in range(n)]
+    if workspace is not None:
+        workspace.close()
     return update
 
 
@@ -696,6 +801,9 @@ async def run_candidate_graph_async(
     evaluator: str = "gsm8k",
     evaluation_metadata: dict | None = None,
     evaluation_timeout: float = 5.0,
+    enable_tools: bool = False,
+    tool_max_steps: int = 8,
+    tool_workspace_root: str | Path | None = None,
 ) -> dict:
     """Async graph execution used for concurrent requests to a vLLM server."""
     mask = graph["mask"]
@@ -730,9 +838,15 @@ async def run_candidate_graph_async(
     node_times = [0.0] * n
     finish_reasons: list[str | None] = [None] * n
     token_budgets: list[int | None] = [None] * n
+    node_tool_traces: list[list[dict]] = [[] for _ in range(n)]
     edge_tokens = [[0.0] * n for _ in range(n)]
     edge_times = [[0.0] * n for _ in range(n)]
     wall_started = time.perf_counter()
+    workspace = None
+    if enable_tools:
+        from .tool_runtime import EpisodeWorkspace
+
+        workspace = EpisodeWorkspace(evaluation_metadata, tool_workspace_root)
 
     for target in order:
         predecessors = [source for source in order if adjacency[source][target]]
@@ -746,9 +860,36 @@ async def run_candidate_graph_async(
             evaluator=evaluator,
         )
         token_budgets[target] = node_token_budget(nodes[target])
-        result = await backend.generate(
-            messages, max_new_tokens=token_budgets[target]
-        )
+        tools = node_tools = nodes[target].get("tools", [])
+        if tools and not isinstance(tools, list):
+            raise ValueError(f"tools for node {nodes[target].get('id')!r} must be a list")
+        if enable_tools and node_tools:
+            from .tool_runtime import run_tool_loop_async
+
+            assert workspace is not None
+            tool_result = await run_tool_loop_async(
+                backend,
+                messages,
+                [str(name) for name in node_tools],
+                workspace,
+                max_steps=min(
+                    tool_max_steps,
+                    int(nodes[target].get("max_tool_steps", tool_max_steps)),
+                ),
+                max_new_tokens=token_budgets[target],
+            )
+            result = GenerationResult(
+                text=tool_result.text,
+                input_tokens=tool_result.input_tokens,
+                output_tokens=tool_result.output_tokens,
+                latency_seconds=tool_result.latency_seconds,
+                finish_reason=tool_result.finish_reason,
+            )
+            node_tool_traces[target] = list(tool_result.tool_trace)
+        else:
+            result = await backend.generate(
+                messages, max_new_tokens=token_budgets[target]
+            )
         outputs[target] = result.text
         input_tokens[target] = result.input_tokens
         output_tokens[target] = result.output_tokens
@@ -793,6 +934,8 @@ async def run_candidate_graph_async(
         "node_time_cost": node_times,
         "node_finish_reason": finish_reasons,
         "node_max_new_tokens": token_budgets,
+        "node_tool_traces": node_tool_traces,
+        "total_tool_calls": sum(len(trace) for trace in node_tool_traces),
         "total_input_tokens": total_input_tokens,
         "total_output_tokens": total_output_tokens,
         "wall_time_seconds": wall_time,
@@ -802,4 +945,6 @@ async def run_candidate_graph_async(
         update["evaluation_error"] = evaluation_error
     if store_node_outputs:
         update["node_outputs"] = [outputs.get(index) for index in range(n)]
+    if workspace is not None:
+        workspace.close()
     return update

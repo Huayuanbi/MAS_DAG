@@ -1,0 +1,124 @@
+{
+  "tasks": 5,
+  "tasks_solved": 0,
+  "task_solve_rate": 0.0,
+  "completed_graphs": 19,
+  "correct_graphs": 0,
+  "graph_accuracy": 0.0,
+  "total_tokens": 101581,
+  "summed_wall_seconds": 109.83862151019275,
+  "by_kind": {
+    "document": {
+      "tasks": 2,
+      "solved": 0,
+      "graphs": 7,
+      "correct": 0,
+      "task_solve_rate": 0.0,
+      "graph_accuracy": 0.0
+    },
+    "spreadsheet": {
+      "tasks": 1,
+      "solved": 0,
+      "graphs": 4,
+      "correct": 0,
+      "task_solve_rate": 0.0,
+      "graph_accuracy": 0.0
+    },
+    "media": {
+      "tasks": 2,
+      "solved": 0,
+      "graphs": 8,
+      "correct": 0,
+      "task_solve_rate": 0.0,
+      "graph_accuracy": 0.0
+    }
+  },
+  "by_topology": {
+    "finalizer_only": {
+      "graphs": 5,
+      "correct": 0,
+      "tokens": 1533,
+      "wall_seconds": 4.587622280232608,
+      "tool_calls": 0,
+      "accuracy": 0.0,
+      "mean_tokens": 306.6,
+      "mean_wall_seconds": 0.9175244560465217
+    },
+    "primary_finalize": {
+      "graphs": 5,
+      "correct": 0,
+      "tokens": 29215,
+      "wall_seconds": 26.277509939856827,
+      "tool_calls": 8,
+      "accuracy": 0.0,
+      "mean_tokens": 5843.0,
+      "mean_wall_seconds": 5.255501987971366
+    },
+    "primary_verify_finalize": {
+      "graphs": 4,
+      "correct": 0,
+      "tokens": 28600,
+      "wall_seconds": 28.01484709791839,
+      "tool_calls": 9,
+      "accuracy": 0.0,
+      "mean_tokens": 7150.0,
+      "mean_wall_seconds": 7.003711774479598
+    },
+    "primary_verify_direct_finalize": {
+      "graphs": 5,
+      "correct": 0,
+      "tokens": 42233,
+      "wall_seconds": 50.958642192184925,
+      "tool_calls": 15,
+      "accuracy": 0.0,
+      "mean_tokens": 8446.6,
+      "mean_wall_seconds": 10.191728438436986
+    }
+  },
+  "tools": {
+    "workspace_inspect_file": {
+      "calls": 6,
+      "ok": 6,
+      "error": 0
+    },
+    "workspace_analyze_pdb": {
+      "calls": 3,
+      "ok": 3,
+      "error": 0
+    },
+    "parse_error": {
+      "calls": 8,
+      "ok": 0,
+      "error": 8
+    },
+    "workspace_inspect_spreadsheet": {
+      "calls": 3,
+      "ok": 3,
+      "error": 0
+    },
+    "workspace_read_spreadsheet": {
+      "calls": 3,
+      "ok": 3,
+      "error": 0
+    },
+    "workspace_list_archive": {
+      "calls": 2,
+      "ok": 2,
+      "error": 0
+    },
+    "workspace_read_archive_member": {
+      "calls": 4,
+      "ok": 3,
+      "error": 1
+    },
+    "workspace_probe_media": {
+      "calls": 3,
+      "ok": 3,
+      "error": 0
+    }
+  },
+  "tool_errors": {
+    "invalid TOOL_CALL JSON: Expecting value": 8,
+    "identical tool call repeated too often": 1
+  }
+}

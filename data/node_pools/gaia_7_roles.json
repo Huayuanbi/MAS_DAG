@@ -1,0 +1,60 @@
+{
+  "id": "gaia_7_roles_v1",
+  "finalizer_id": "agent_6",
+  "nodes": [
+    {
+      "id": "agent_0",
+      "role": "web_researcher",
+      "tools": ["web_search", "web_open", "web_download", "web_find", "wikipedia_search", "arxiv_search"],
+      "max_tool_steps": 8,
+      "role_brief": "Find reliable web evidence, track dates and source identity, and report concise findings with URLs. Do not guess the final answer.",
+      "user_prompt": "Research the web-facing parts of this GAIA task and report evidence for downstream agents:\n\n{question}\n\nUpstream evidence:\n{context}"
+    },
+    {
+      "id": "agent_1",
+      "role": "document_analyst",
+      "tools": ["workspace_list_files", "workspace_inspect_file", "workspace_read_document", "workspace_read_text", "workspace_read_pdf", "workspace_read_json", "workspace_analyze_pdb", "workspace_list_archive", "workspace_read_archive_member", "workspace_extract_archive_member"],
+      "max_tool_steps": 12,
+      "role_brief": "Inspect document attachments and report exact evidence. Route by type: use workspace_analyze_pdb for PDB, workspace_read_json for JSON/JSON-LD, workspace_read_pdf for PDF, and workspace_read_document for ordinary documents. For ZIP, list members first, copy binary members with workspace_extract_archive_member, then read the returned artifacts path; text/XML members may be read directly. Never guess member names or unavailable content.",
+      "user_prompt": "Analyze relevant documents or images for this GAIA task:\n\n{question}\n\nUpstream evidence:\n{context}"
+    },
+    {
+      "id": "agent_2",
+      "role": "spreadsheet_analyst",
+      "tools": ["workspace_list_files", "workspace_inspect_file", "workspace_read_document", "workspace_read_spreadsheet", "workspace_inspect_spreadsheet", "workspace_analyze_spreadsheet_grid", "workspace_list_archive", "workspace_extract_archive_member", "python_calculate"],
+      "max_tool_steps": 12,
+      "role_brief": "Inspect spreadsheets and tabular data, identify relevant rows and columns, and compute exact findings. Use workspace_inspect_spreadsheet whenever the question mentions colors, formatting, formulas, maps, paths, START/END, or visual cell properties. For a same-color orthogonal grid traversal or closed-loop question, identify the target fill RGB then call workspace_analyze_spreadsheet_grid and use its necessary-condition result. Otherwise use workspace_read_spreadsheet. For ZIP, list then extract the exact spreadsheet member before reading it.",
+      "user_prompt": "Analyze spreadsheet or tabular evidence for this GAIA task:\n\n{question}\n\nUpstream evidence:\n{context}"
+    },
+    {
+      "id": "agent_3",
+      "role": "media_analyst",
+      "tools": ["workspace_list_files", "workspace_inspect_file", "workspace_probe_media", "workspace_ocr_image", "workspace_extract_video_frames", "workspace_transcribe_audio"],
+      "max_tool_steps": 12,
+      "role_brief": "Analyze media attachments. For PNG/JPG and screenshots, call workspace_ocr_image rather than stopping at metadata. For audio, call workspace_transcribe_audio with model tiny.en or base.en and retain at least 20 segments. For video, probe it, extract frames, OCR relevant frames, and transcribe its audio. Distinguish extracted evidence from unsupported visual interpretation and do not invent content.",
+      "user_prompt": "Analyze the available media evidence for this GAIA task, using OCR or transcription when relevant:\n\n{question}\n\nUpstream evidence:\n{context}"
+    },
+    {
+      "id": "agent_4",
+      "role": "python_calculation_analyst",
+      "tools": ["python_calculate"],
+      "max_tool_steps": 6,
+      "role_brief": "Use Python-style computation to transform evidence, calculate exact values, parse structured data, and check numerical results.",
+      "user_prompt": "Perform the required computation or structured-data analysis:\n\n{question}\n\nUpstream evidence:\n{context}"
+    },
+    {
+      "id": "agent_5",
+      "role": "evidence_verifier",
+      "tools": ["web_search", "web_open", "web_find", "wikipedia_search", "arxiv_search"],
+      "max_tool_steps": 4,
+      "role_brief": "Cross-check upstream evidence, resolve contradictions, enforce the requested date and scope, and recommend one supported answer.",
+      "user_prompt": "Verify the evidence and derive the best-supported answer:\n\n{question}\n\nCandidate evidence:\n{context}"
+    },
+    {
+      "id": "agent_6",
+      "role": "finalizer",
+      "role_brief": "Return the unique concise GAIA answer in exactly the requested format, using only supported upstream evidence.",
+      "user_prompt": "Answer this GAIA task:\n\n{question}\n\nVerified upstream evidence:\n{context}"
+    }
+  ]
+}

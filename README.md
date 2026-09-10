@@ -5,6 +5,57 @@
 新服务器部署、数据校验、单轮运行和多轮一键启动均以该文档为准；根目录同名
 脚本仅作为兼容入口保留。
 
+## GAIA 工具节点（实验性）
+
+GAIA 适配采用两级执行：候选 DAG 表示能力 Agent 之间的信息流；声明了 `tools`
+的节点在内部运行文本 JSON ReAct 循环。工具调用保存在 `node_tool_traces`，不展开为
+DAG 节点。Finalizer 不分配工具，避免绕过候选拓扑。
+
+安装可选依赖并生成 10 题 pilot：
+
+```bash
+pip install -e '.[gaia]'
+python prepare_gaia_candidates.py \
+  --dataset-root /path/to/GAIA \
+  --split validation --levels 1,2 --pilot
+```
+
+使用 Qwen3 文本模型和 vLLM 执行：
+
+```bash
+python run_mas.py \
+  --backend vllm \
+  --model qwen3-8b \
+  --tokenizer /path/to/Qwen3-8B \
+  --base-url http://127.0.0.1:8000/v1 \
+  --input data/gaia/validation_pilot_candidates.json \
+  --output data/gaia/validation_pilot_scored.json \
+  --evaluator gaia \
+  --enable-tools \
+  --tool-max-steps 8 \
+  --store-node-outputs
+```
+
+当前共注册 24 个工具，包括通用附件识别与读取、隔离工作区文件列表、文本、
+XLS/XLSX/CSV、带颜色/公式的表格检查、PDF、DOCX、PPTX、JSON-LD、PDB 分析、
+ZIP 安全读取与成员释放、图片元数据、受限 Python 计算、网页搜索/打开/下载、
+Wikipedia 和 arXiv 检索。媒体节点还提供 RapidOCR 图片文字提取、PyAV 音视频探测、
+内置 FFmpeg 视频抽帧和 faster-whisper 音视频语音转写。XLSX 在没有 `openpyxl` 时使用
+标准库 fallback；PDF 需要系统安装 `pdftotext`。复杂图片/关键帧的语义视觉理解和
+Qwen3-VL 消息后端尚未接入；Whisper 模型在第一次调用时下载并缓存。
+
+生成较大规模、按模态平衡的 GAIA 候选集：
+
+```bash
+python prepare_gaia_candidates.py --split validation --levels 1,2,3 \
+  --kind-quotas web=8,document=7,spreadsheet=6,media=7 \
+  --output data/gaia/validation_balanced28_candidates_v2.json
+```
+
+该配置生成 28 道题、208 张候选图。除原有拓扑外，还包含 primary 原始证据
+直达 finalizer 的对照图，用于测量 verifier 信息压缩造成的损失。运行完成后使用
+`python analyze_gaia_results.py --input <scored.json> --output <summary.json>` 汇总。
+
 ## 生成候选图
 
 [`generate_candidates.py`](generate_candidates.py) 是新版通用入口。它根据

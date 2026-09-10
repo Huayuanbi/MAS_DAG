@@ -7,6 +7,7 @@
 !/data/node_pools/mmlu_pro_6_roles.json
 !/data/node_pools/gpqa_diamond_11_roles.json
 !/data/node_pools/aime_workflow_13_roles.json
+!/data/node_pools/gaia_7_roles.json
 !/data/merged_semantic_train1000_v1/
 !/data/merged_semantic_train1000_v1/README.md
 !/data/merged_semantic_train1000_v1/manifest.json

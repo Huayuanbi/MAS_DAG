@@ -16,5 +16,21 @@ dependencies = [
     "transformers>=4.51",
 ]
 
+[project.optional-dependencies]
+gaia = [
+    "av>=11",
+    "faster-whisper>=1.2",
+    "imageio-ffmpeg>=0.6",
+    "numpy<2",
+    "onnxruntime>=1.7",
+    "opencv-python>=4.5,<4.10",
+    "openpyxl>=3.1",
+    "pyarrow>=15",
+    "protobuf>=4.25.8,<6",
+    "rapidocr-onnxruntime>=1.4",
+    "requests>=2.31",
+    "xlrd>=2.0",
+]
+
 [tool.setuptools.packages.find]
 include = ["MAS_DAG*"]

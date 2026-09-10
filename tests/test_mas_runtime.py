@@ -5,6 +5,8 @@ from MAS_DAG.mas_runtime import (
     GenerationResult,
     build_messages,
     extract_gsm8k_answer,
+    extract_gaia_answer,
+    gaia_exact_match,
     evaluate_answer,
     evaluate_humaneval,
     extract_math_answer,
@@ -104,6 +106,23 @@ class MasRuntimeTest(unittest.TestCase):
         self.assertIsNone(extract_gsm8k_answer("truncated calculation: 10 - 2 = 8"))
         with self.assertRaisesRegex(ValueError, "DAG"):
             topological_order([0, 0], [[0, 1], [1, 0]])
+
+    def test_gaia_answer_extraction_and_matching(self) -> None:
+        self.assertEqual(
+            extract_gaia_answer("Checked sources.\nFINAL_ANSWER: egalitarian"),
+            "egalitarian",
+        )
+        self.assertTrue(gaia_exact_match("$1,024", "1024"))
+        self.assertTrue(gaia_exact_match("Sea Gull", "seagull"))
+        self.assertTrue(gaia_exact_match("34689, 90210", "34689,90210"))
+        self.assertFalse(gaia_exact_match("90210,34689", "34689,90210"))
+        prediction, passed = evaluate_answer(
+            "FINAL_ANSWER: Time-Parking 2: Parallel Universe",
+            "Time-Parking 2: Parallel Universe",
+            "gaia",
+        )
+        self.assertEqual(prediction, "Time-Parking 2: Parallel Universe")
+        self.assertTrue(passed)
 
     def test_humaneval_pass_fail_reward_signal(self) -> None:
         metadata = {

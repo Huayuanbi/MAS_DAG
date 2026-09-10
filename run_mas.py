@@ -63,10 +63,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--retry-errors", action="store_true")
     parser.add_argument("--store-node-outputs", action="store_true")
     parser.add_argument(
+        "--enable-tools",
+        action="store_true",
+        help="Enable per-node text ReAct loops for tools declared in the node pool.",
+    )
+    parser.add_argument("--tool-max-steps", type=int, default=8)
+    parser.add_argument(
+        "--tool-workspace-root",
+        type=Path,
+        default=None,
+        help="Optional parent directory for isolated per-graph tool workspaces.",
+    )
+    parser.add_argument(
         "--evaluator",
         choices=(
             "auto", "gsm8k", "math", "humaneval", "mmlu_pro",
-            "multiple_choice",
+            "multiple_choice", "gaia",
         ),
         default="auto",
         help="Answer scorer; auto reads each record's evaluator and defaults to gsm8k",
@@ -119,7 +131,7 @@ def should_execute(graph: dict, retry_errors: bool) -> bool:
 def resolve_evaluator(record: dict, requested: str) -> str:
     evaluator = record.get("evaluator", "gsm8k") if requested == "auto" else requested
     if evaluator not in (
-        "gsm8k", "math", "humaneval", "mmlu_pro", "multiple_choice"
+        "gsm8k", "math", "humaneval", "mmlu_pro", "multiple_choice", "gaia"
     ):
         raise ValueError(f"unsupported record evaluator: {evaluator!r}")
     return evaluator
@@ -185,6 +197,9 @@ async def run_vllm(
                     evaluator=evaluator,
                     evaluation_metadata=record.get("source_metadata"),
                     evaluation_timeout=args.evaluation_timeout,
+                    enable_tools=args.enable_tools,
+                    tool_max_steps=args.tool_max_steps,
+                    tool_workspace_root=args.tool_workspace_root,
                 )
             graph.update(update)
             graph.pop("execution_error", None)
@@ -232,6 +247,8 @@ def main() -> None:
         raise ValueError("cost penalties must be non-negative")
     if args.evaluation_timeout <= 0:
         raise ValueError("evaluation-timeout must be positive")
+    if args.tool_max_steps <= 0:
+        raise ValueError("tool-max-steps must be positive")
 
     if args.resume and args.output.exists():
         records = load_json(args.output)
@@ -292,6 +309,9 @@ def main() -> None:
                         evaluator=evaluator,
                         evaluation_metadata=record.get("source_metadata"),
                         evaluation_timeout=args.evaluation_timeout,
+                        enable_tools=args.enable_tools,
+                        tool_max_steps=args.tool_max_steps,
+                        tool_workspace_root=args.tool_workspace_root,
                     )
                 )
                 graph.pop("execution_error", None)

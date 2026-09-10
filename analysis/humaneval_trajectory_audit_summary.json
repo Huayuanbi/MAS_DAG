@@ -1,0 +1,968 @@
+{
+  "completed_graphs": 72,
+  "counts": {
+    "graphs": 72,
+    "reviewer_writes_target_code": 35,
+    "reviewer_claims_missing_implementation": 20,
+    "tester_proposes_tests": 41,
+    "final_close_copy_of_reviewer": 17,
+    "reviewer_approves": 14,
+    "final_close_copy_of_coder": 12,
+    "no_coder_only_finalizer_writes_code": 17,
+    "no_coder_reviewer_also_writes_code": 10,
+    "no_coder_algorithm_also_writes_code": 4,
+    "final_close_copy_of_algorithm": 2
+  },
+  "groups": {
+    "all": {
+      "n": 72,
+      "accuracy": 0.7222222222222222
+    },
+    "reviewer_active": {
+      "n": 47,
+      "accuracy": 0.7872340425531915
+    },
+    "reviewer_without_direct_coder": {
+      "n": 34,
+      "accuracy": 0.7941176470588235
+    },
+    "tester_direct_coder": {
+      "n": 32,
+      "accuracy": 0.75
+    },
+    "reviewer_direct_coder": {
+      "n": 13,
+      "accuracy": 0.7692307692307693
+    },
+    "no_coder": {
+      "n": 28,
+      "accuracy": 0.7142857142857143
+    },
+    "tester_without_direct_coder": {
+      "n": 9,
+      "accuracy": 0.7777777777777778
+    }
+  },
+  "structurally_irregular_examples": [
+    {
+      "task_id": "HumanEval/26",
+      "graph_id": "q0007_g00",
+      "generator": "chain",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 1.0
+    },
+    {
+      "task_id": "HumanEval/26",
+      "graph_id": "q0007_g02",
+      "generator": "tree",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 1.0
+    },
+    {
+      "task_id": "HumanEval/26",
+      "graph_id": "q0007_g05",
+      "generator": "finalizer_only",
+      "accuracy": 0.0,
+      "active_roles": [
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": null,
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/26",
+      "graph_id": "q0007_g10",
+      "generator": "random_dag",
+      "accuracy": 1.0,
+      "active_roles": [
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 1.0
+    },
+    {
+      "task_id": "HumanEval/129",
+      "graph_id": "q0017_g00",
+      "generator": "chain",
+      "accuracy": 0.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "algorithm",
+        "coder"
+      ],
+      "closest_final_source": "coder",
+      "closest_similarity": 0.2327209098862642
+    },
+    {
+      "task_id": "HumanEval/129",
+      "graph_id": "q0017_g02",
+      "generator": "tree",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "algorithm",
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "algorithm",
+      "closest_similarity": 0.6019590382902938
+    },
+    {
+      "task_id": "HumanEval/129",
+      "graph_id": "q0017_g05",
+      "generator": "finalizer_only",
+      "accuracy": 0.0,
+      "active_roles": [
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": null,
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/129",
+      "graph_id": "q0017_g07",
+      "generator": "random_dag",
+      "accuracy": 0.0,
+      "active_roles": [
+        "test",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": "test",
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/129",
+      "graph_id": "q0017_g08",
+      "generator": "random_dag",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 0.8090107737512243
+    },
+    {
+      "task_id": "HumanEval/39",
+      "graph_id": "q0031_g00",
+      "generator": "chain",
+      "accuracy": 0.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 0.8039391226499553
+    },
+    {
+      "task_id": "HumanEval/39",
+      "graph_id": "q0031_g02",
+      "generator": "tree",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "algorithm",
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "algorithm",
+      "closest_similarity": 0.38943894389438943
+    },
+    {
+      "task_id": "HumanEval/39",
+      "graph_id": "q0031_g05",
+      "generator": "finalizer_only",
+      "accuracy": 1.0,
+      "active_roles": [
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": null,
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/39",
+      "graph_id": "q0031_g07",
+      "generator": "random_dag",
+      "accuracy": 1.0,
+      "active_roles": [
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/39",
+      "graph_id": "q0031_g09",
+      "generator": "random_dag",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "test",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [
+        "algorithm"
+      ],
+      "closest_final_source": "algorithm",
+      "closest_similarity": 0.7552182163187856
+    },
+    {
+      "task_id": "HumanEval/149",
+      "graph_id": "q0035_g00",
+      "generator": "chain",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 1.0
+    },
+    {
+      "task_id": "HumanEval/149",
+      "graph_id": "q0035_g02",
+      "generator": "tree",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "algorithm",
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "algorithm",
+      "closest_similarity": 0.5953002610966057
+    },
+    {
+      "task_id": "HumanEval/149",
+      "graph_id": "q0035_g05",
+      "generator": "finalizer_only",
+      "accuracy": 1.0,
+      "active_roles": [
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": null,
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/149",
+      "graph_id": "q0035_g08",
+      "generator": "random_dag",
+      "accuracy": 0.0,
+      "active_roles": [
+        "spec",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": "spec",
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/149",
+      "graph_id": "q0035_g09",
+      "generator": "random_dag",
+      "accuracy": 0.0,
+      "active_roles": [
+        "spec",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": "spec",
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/135",
+      "graph_id": "q0039_g00",
+      "generator": "chain",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "coder",
+      "closest_similarity": 1.0
+    },
+    {
+      "task_id": "HumanEval/135",
+      "graph_id": "q0039_g02",
+      "generator": "tree",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "coder"
+      ],
+      "closest_final_source": "coder",
+      "closest_similarity": 0.36486486486486486
+    },
+    {
+      "task_id": "HumanEval/135",
+      "graph_id": "q0039_g05",
+      "generator": "finalizer_only",
+      "accuracy": 0.0,
+      "active_roles": [
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": null,
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/135",
+      "graph_id": "q0039_g08",
+      "generator": "random_dag",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": "spec",
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/135",
+      "graph_id": "q0039_g07",
+      "generator": "random_dag",
+      "accuracy": 1.0,
+      "active_roles": [
+        "coder",
+        "test",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [
+        "coder"
+      ],
+      "closest_final_source": "coder",
+      "closest_similarity": 0.8755129958960328
+    },
+    {
+      "task_id": "HumanEval/103",
+      "graph_id": "q0043_g00",
+      "generator": "chain",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 0.4579710144927536
+    },
+    {
+      "task_id": "HumanEval/103",
+      "graph_id": "q0043_g02",
+      "generator": "tree",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "algorithm",
+        "coder"
+      ],
+      "closest_final_source": "algorithm",
+      "closest_similarity": 1.0
+    },
+    {
+      "task_id": "HumanEval/103",
+      "graph_id": "q0043_g05",
+      "generator": "finalizer_only",
+      "accuracy": 1.0,
+      "active_roles": [
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": null,
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/103",
+      "graph_id": "q0043_g07",
+      "generator": "random_dag",
+      "accuracy": 1.0,
+      "active_roles": [
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 0.3296432964329643
+    },
+    {
+      "task_id": "HumanEval/103",
+      "graph_id": "q0043_g09",
+      "generator": "random_dag",
+      "accuracy": 1.0,
+      "active_roles": [
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 0.4388888888888889
+    },
+    {
+      "task_id": "HumanEval/10",
+      "graph_id": "q0050_g00",
+      "generator": "chain",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 0.8513902205177373
+    },
+    {
+      "task_id": "HumanEval/10",
+      "graph_id": "q0050_g02",
+      "generator": "tree",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "algorithm",
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 0.8618899273104881
+    },
+    {
+      "task_id": "HumanEval/10",
+      "graph_id": "q0050_g05",
+      "generator": "finalizer_only",
+      "accuracy": 0.0,
+      "active_roles": [
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": null,
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/10",
+      "graph_id": "q0050_g09",
+      "generator": "random_dag",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [
+        "algorithm",
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 0.6273830155979203
+    },
+    {
+      "task_id": "HumanEval/10",
+      "graph_id": "q0050_g10",
+      "generator": "random_dag",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [
+        "algorithm",
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 0.6026871401151631
+    },
+    {
+      "task_id": "HumanEval/10",
+      "graph_id": "q0050_g11",
+      "generator": "random_dag",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [
+        "algorithm",
+        "reviewer"
+      ],
+      "closest_final_source": "algorithm",
+      "closest_similarity": 0.2564102564102564
+    },
+    {
+      "task_id": "HumanEval/160",
+      "graph_id": "q0051_g00",
+      "generator": "chain",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "algorithm",
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 0.6619789050728278
+    },
+    {
+      "task_id": "HumanEval/160",
+      "graph_id": "q0051_g02",
+      "generator": "tree",
+      "accuracy": 0.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "algorithm",
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "algorithm",
+      "closest_similarity": 0.8726061615320566
+    },
+    {
+      "task_id": "HumanEval/160",
+      "graph_id": "q0051_g05",
+      "generator": "finalizer_only",
+      "accuracy": 1.0,
+      "active_roles": [
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": null,
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/160",
+      "graph_id": "q0051_g08",
+      "generator": "random_dag",
+      "accuracy": 0.0,
+      "active_roles": [
+        "spec",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": "spec",
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/160",
+      "graph_id": "q0051_g11",
+      "generator": "random_dag",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 0.48982035928143713
+    },
+    {
+      "task_id": "HumanEval/106",
+      "graph_id": "q0053_g00",
+      "generator": "chain",
+      "accuracy": 0.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 0.8421052631578947
+    },
+    {
+      "task_id": "HumanEval/106",
+      "graph_id": "q0053_g02",
+      "generator": "tree",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "coder",
+      "closest_similarity": 0.46403712296983757
+    },
+    {
+      "task_id": "HumanEval/106",
+      "graph_id": "q0053_g05",
+      "generator": "finalizer_only",
+      "accuracy": 1.0,
+      "active_roles": [
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": null,
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/106",
+      "graph_id": "q0053_g07",
+      "generator": "random_dag",
+      "accuracy": 1.0,
+      "active_roles": [
+        "algorithm",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": "algorithm",
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/106",
+      "graph_id": "q0053_g08",
+      "generator": "random_dag",
+      "accuracy": 1.0,
+      "active_roles": [
+        "algorithm",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 0.8931034482758621
+    },
+    {
+      "task_id": "HumanEval/24",
+      "graph_id": "q0058_g00",
+      "generator": "chain",
+      "accuracy": 0.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 1.0
+    },
+    {
+      "task_id": "HumanEval/24",
+      "graph_id": "q0058_g02",
+      "generator": "tree",
+      "accuracy": 1.0,
+      "active_roles": [
+        "spec",
+        "algorithm",
+        "coder",
+        "test",
+        "reviewer",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": true,
+      "writers_before_finalizer": [
+        "algorithm",
+        "coder",
+        "reviewer"
+      ],
+      "closest_final_source": "reviewer",
+      "closest_similarity": 0.9320148331273177
+    },
+    {
+      "task_id": "HumanEval/24",
+      "graph_id": "q0058_g05",
+      "generator": "finalizer_only",
+      "accuracy": 1.0,
+      "active_roles": [
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": null,
+      "closest_similarity": 0.0
+    },
+    {
+      "task_id": "HumanEval/24",
+      "graph_id": "q0058_g08",
+      "generator": "random_dag",
+      "accuracy": 1.0,
+      "active_roles": [
+        "test",
+        "finalizer"
+      ],
+      "reviewer_direct_coder": false,
+      "tester_direct_coder": false,
+      "writers_before_finalizer": [],
+      "closest_final_source": "test",
+      "closest_similarity": 0.0
+    }
+  ]
+}
